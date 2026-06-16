@@ -43,6 +43,8 @@ func (s *Service) ChatStream(ctx context.Context, msgs []ChatMessage, opts ChatO
 		return s.streamGemini(ctx, msgs, opts, onDelta)
 	case ProviderOllama:
 		return s.streamOllama(ctx, msgs, opts, onDelta)
+	case ProviderGamAPI:
+		return fmt.Errorf("GamAPI hanya mendukung image generation — gunakan tab Image di Playground")
 	}
 	return fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }

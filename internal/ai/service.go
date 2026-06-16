@@ -19,7 +19,27 @@ const (
 	ProviderAnthropic Provider = "anthropic"
 	ProviderGemini    Provider = "gemini"
 	ProviderOllama    Provider = "ollama"
+	ProviderGamAPI    Provider = "gamapi"
 )
+
+// ImageResult holds a single generated image.
+type ImageResult struct {
+	URL           string `json:"url"`
+	RevisedPrompt string `json:"revisedPrompt,omitempty"`
+	Width         int    `json:"width,omitempty"`
+	Height        int    `json:"height,omitempty"`
+	Model         string `json:"model,omitempty"`
+	B64JSON       string `json:"b64Json,omitempty"` // base64-encoded PNG for providers that return inline data
+}
+
+// ImageOptions carry per-request overrides for image generation.
+type ImageOptions struct {
+	Model       string `json:"model"`
+	Size        string `json:"size"`
+	Style       string `json:"style"`
+	AspectRatio string `json:"aspectRatio"`
+	Count       int    `json:"count"`
+}
 
 type Config struct {
 	Provider Provider `json:"provider"`
@@ -59,6 +79,41 @@ func (s *Service) Enabled() bool {
 	return s.cfg.Enabled && (s.cfg.APIKey != "" || s.cfg.Provider == ProviderOllama)
 }
 
+// GenerateImage creates images from a text prompt using the configured provider.
+// Not all providers support image generation (Anthropic, Ollama don't).
+func (s *Service) GenerateImage(ctx context.Context, prompt string, opts ImageOptions) ([]ImageResult, error) {
+	if !s.Enabled() {
+		return nil, errors.New("AI not configured")
+	}
+	if prompt == "" {
+		return nil, errors.New("prompt is required")
+	}
+	switch s.cfg.Provider {
+	case ProviderOpenAI:
+		return s.generateOpenAIImage(ctx, prompt, opts)
+	case ProviderGemini:
+		return s.generateGeminiImage(ctx, prompt, opts)
+	case ProviderGamAPI:
+		return s.generateGamAPIImage(ctx, prompt, opts)
+	}
+	return nil, fmt.Errorf("provider %s does not support image generation", s.cfg.Provider)
+}
+
+// GamAPIImageSupport exposes GamAPI-specific endpoints for the frontend to query
+// models, styles and aspect ratios before generating.
+
+func (s *Service) ListGamAPIModels(ctx context.Context) ([]string, error) {
+	return s.listGamAPIModels(ctx)
+}
+
+func (s *Service) ListGamAPIStyles(ctx context.Context) (map[string]string, error) {
+	return s.listGamAPIStyles(ctx)
+}
+
+func (s *Service) ListGamAPIAspectRatios(ctx context.Context) (map[string]string, error) {
+	return s.listGamAPIAspectRatios(ctx)
+}
+
 // Chat is the unified prompt entrypoint. Returns a single completion string.
 func (s *Service) Chat(ctx context.Context, system, user string) (string, error) {
 	if !s.Enabled() {
@@ -73,6 +128,8 @@ func (s *Service) Chat(ctx context.Context, system, user string) (string, error)
 		return s.callGemini(ctx, system, user)
 	case ProviderOllama:
 		return s.callOllama(ctx, system, user)
+	case ProviderGamAPI:
+		return "", fmt.Errorf("GamAPI hanya mendukung image generation — gunakan tab Image di Playground")
 	}
 	return "", fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }
@@ -130,6 +187,8 @@ func (s *Service) Ping(ctx context.Context) error {
 	case ProviderOllama:
 		_, err := s.callOllama(ctx, "Reply with OK.", "ping")
 		return err
+	case ProviderGamAPI:
+		return fmt.Errorf("GamAPI tidak mendukung chat — hanya image generation")
 	}
 	return fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }
@@ -145,6 +204,8 @@ func (s *Service) ListModels(ctx context.Context) ([]string, error) {
 		return s.listGeminiModels(ctx)
 	case ProviderOllama:
 		return s.listOllamaModels(ctx)
+	case ProviderGamAPI:
+		return s.ListGamAPIModels(ctx)
 	}
 	return nil, fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }

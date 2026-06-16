@@ -20,6 +20,48 @@ export namespace ai {
 	        this.enabled = source["enabled"];
 	    }
 	}
+	export class ImageOptions {
+	    model: string;
+	    size: string;
+	    style: string;
+	    aspectRatio: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model = source["model"];
+	        this.size = source["size"];
+	        this.style = source["style"];
+	        this.aspectRatio = source["aspectRatio"];
+	        this.count = source["count"];
+	    }
+	}
+	export class ImageResult {
+	    url: string;
+	    revisedPrompt?: string;
+	    width?: number;
+	    height?: number;
+	    model?: string;
+	    b64Json?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.revisedPrompt = source["revisedPrompt"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.model = source["model"];
+	        this.b64Json = source["b64Json"];
+	    }
+	}
 
 }
 
@@ -110,6 +152,65 @@ export namespace main {
 	        this.id = source["id"];
 	        this.participant = source["participant"];
 	        this.text = source["text"];
+	    }
+	}
+
+}
+
+export namespace market {
+	
+	export class OHLC {
+	    time: number;
+	    open: number;
+	    high: number;
+	    low: number;
+	    close: number;
+	    volume: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OHLC(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.time = source["time"];
+	        this.open = source["open"];
+	        this.high = source["high"];
+	        this.low = source["low"];
+	        this.close = source["close"];
+	        this.volume = source["volume"];
+	    }
+	}
+	export class Quote {
+	    symbol: string;
+	    name: string;
+	    price: number;
+	    change: number;
+	    changePercent: number;
+	    high: number;
+	    low: number;
+	    open: number;
+	    volume: number;
+	    currency: string;
+	    exchange: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Quote(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.symbol = source["symbol"];
+	        this.name = source["name"];
+	        this.price = source["price"];
+	        this.change = source["change"];
+	        this.changePercent = source["changePercent"];
+	        this.high = source["high"];
+	        this.low = source["low"];
+	        this.open = source["open"];
+	        this.volume = source["volume"];
+	        this.currency = source["currency"];
+	        this.exchange = source["exchange"];
 	    }
 	}
 

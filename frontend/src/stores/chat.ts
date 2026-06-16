@@ -908,10 +908,10 @@ export const useChatStore = defineStore('chat', () => {
       loginStatus.value = 'timeout'
       qrCode.value = ''
     })
-    EventsOn('wa:connected', async (s: BackendSession) => {
+    EventsOn('wa:connected', (s: BackendSession) => {
       upsertSession(s)
-      // Re-fetch chats & messages when connected/reconnected
-      await loadChatsForAccount(s.id)
+      // Don't reload all chats — refreshSessions already did it on startup.
+      // For reconnection, seedChatsFromContacts sends wa:chat for each contact.
     })
     EventsOn('wa:disconnected', (s: BackendSession) => upsertSession(s))
     EventsOn('wa:logged_out', (s: BackendSession) => {
@@ -970,9 +970,14 @@ export const useChatStore = defineStore('chat', () => {
     })
     EventsOn('wa:sync_complete', async (data: { sessionId: string }) => {
       console.log('history sync done', data?.sessionId)
-      // Re-fetch chats & messages after history sync completes
+      // Only load chats if this is a brand-new account with no chats yet.
+      // If chats are already loaded (from refreshSessions), skip to avoid
+      // double-loading messages and duplicating chat list entries.
       if (data?.sessionId) {
-        await loadChatsForAccount(data.sessionId)
+        const hasExisting = chats.value.some((c) => c.accountId === data.sessionId)
+        if (!hasExisting) {
+          await loadChatsForAccount(data.sessionId)
+        }
       }
     })
   }

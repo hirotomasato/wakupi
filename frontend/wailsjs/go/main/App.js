@@ -14,6 +14,22 @@ export function AICompose(arg1, arg2) {
   return window['go']['main']['App']['AICompose'](arg1, arg2);
 }
 
+export function AIGenerateImage(arg1, arg2) {
+  return window['go']['main']['App']['AIGenerateImage'](arg1, arg2);
+}
+
+export function AIGetGamAPIModels() {
+  return window['go']['main']['App']['AIGetGamAPIModels']();
+}
+
+export function AIGetGamAPIRatios() {
+  return window['go']['main']['App']['AIGetGamAPIRatios']();
+}
+
+export function AIGetGamAPIStyles() {
+  return window['go']['main']['App']['AIGetGamAPIStyles']();
+}
+
 export function AIListModels(arg1) {
   return window['go']['main']['App']['AIListModels'](arg1);
 }
@@ -134,6 +150,18 @@ export function MarkRead(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['MarkRead'](arg1, arg2, arg3, arg4);
 }
 
+export function MarketGetChart(arg1, arg2) {
+  return window['go']['main']['App']['MarketGetChart'](arg1, arg2);
+}
+
+export function MarketGetQuote(arg1) {
+  return window['go']['main']['App']['MarketGetQuote'](arg1);
+}
+
+export function MarketGetQuotes(arg1) {
+  return window['go']['main']['App']['MarketGetQuotes'](arg1);
+}
+
 export function MediaHTTPHandler() {
   return window['go']['main']['App']['MediaHTTPHandler']();
 }
@@ -172,6 +200,10 @@ export function ReactMessage(arg1, arg2, arg3, arg4, arg5) {
 
 export function RefreshAvatar(arg1, arg2) {
   return window['go']['main']['App']['RefreshAvatar'](arg1, arg2);
+}
+
+export function SaveBase64Image(arg1) {
+  return window['go']['main']['App']['SaveBase64Image'](arg1);
 }
 
 export function SaveTempBlob(arg1, arg2) {

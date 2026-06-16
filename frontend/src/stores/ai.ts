@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { GetAIConfig, SetAIConfig, AISuggestReplies, AISummarize, AICompose, AITestConnection, AIListModels } from '../../wailsjs/go/main/App'
+import { GetAIConfig, SetAIConfig, AISuggestReplies, AISummarize, AICompose, AITestConnection, AIListModels, AIGenerateImage, AIGetGamAPIModels, AIGetGamAPIStyles, AIGetGamAPIRatios } from '../../wailsjs/go/main/App'
 
 export interface AIConfig {
-  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | ''
+  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'gamapi' | ''
   apiKey: string
   baseUrl: string
   model: string
@@ -11,6 +11,24 @@ export interface AIConfig {
 }
 
 export type ConnStatus = 'off' | 'unknown' | 'ok' | 'error'
+
+// Image generation types
+export interface ImageResult {
+  url: string
+  revisedPrompt?: string
+  width?: number
+  height?: number
+  model?: string
+  b64Json?: string
+}
+
+export interface ImageOptions {
+  model?: string
+  size?: string
+  style?: string
+  aspectRatio?: string
+  count?: number
+}
 
 const defaults: AIConfig = {
   provider: 'openai',
@@ -102,6 +120,30 @@ export const useAIStore = defineStore('ai', () => {
     }
   }
 
+  // --- Image Generation ---
+
+  let generating = ref(false)
+
+  async function generateImage(prompt: string, opts: ImageOptions = {}): Promise<ImageResult[]> {
+    if (!config.value.enabled) throw new Error('AI tidak aktif')
+    generating.value = true
+    try {
+      return (await AIGenerateImage(prompt, opts as any)) || []
+    } finally {
+      generating.value = false
+    }
+  }
+
+  async function getGamAPIModels(): Promise<string[]> {
+    try { return (await AIGetGamAPIModels()) || [] } catch { return [] }
+  }
+  async function getGamAPIStyles(): Promise<Record<string, string>> {
+    try { return (await AIGetGamAPIStyles()) || {} } catch { return {} }
+  }
+  async function getGamAPIRatios(): Promise<Record<string, string>> {
+    try { return (await AIGetGamAPIRatios()) || {} } catch { return {} }
+  }
+
   return {
     config,
     loaded,
@@ -119,5 +161,10 @@ export const useAIStore = defineStore('ai', () => {
     clearSuggestions,
     summarize,
     compose,
+    generating,
+    generateImage,
+    getGamAPIModels,
+    getGamAPIStyles,
+    getGamAPIRatios,
   }
 })

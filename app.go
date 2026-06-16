@@ -14,6 +14,7 @@ import (
 
 	"wakupi/internal/ai"
 	"wakupi/internal/desktop"
+	"wakupi/internal/market"
 	"wakupi/internal/wa"
 )
 
@@ -289,6 +290,50 @@ func (a *App) AICompose(prompt, tone string) (string, error) {
 	return a.ai.Chat(a.ctx, sys, prompt)
 }
 
+// === AI Image Generation ===
+
+func (a *App) AIGenerateImage(prompt string, opts ai.ImageOptions) ([]ai.ImageResult, error) {
+	if a.ai == nil || !a.ai.Enabled() {
+		return nil, fmt.Errorf("AI tidak aktif")
+	}
+	return a.ai.GenerateImage(a.ctx, prompt, opts)
+}
+
+func (a *App) AIGetGamAPIModels() ([]string, error) {
+	if a.ai == nil {
+		return nil, fmt.Errorf("AI not ready")
+	}
+	return a.ai.ListGamAPIModels(a.ctx)
+}
+
+func (a *App) AIGetGamAPIStyles() (map[string]string, error) {
+	if a.ai == nil {
+		return nil, fmt.Errorf("AI not ready")
+	}
+	return a.ai.ListGamAPIStyles(a.ctx)
+}
+
+func (a *App) AIGetGamAPIRatios() (map[string]string, error) {
+	if a.ai == nil {
+		return nil, fmt.Errorf("AI not ready")
+	}
+	return a.ai.ListGamAPIAspectRatios(a.ctx)
+}
+
+// === Market Data ===
+
+func (a *App) MarketGetQuote(symbol string) (*market.Quote, error) {
+	return market.FetchQuote(symbol)
+}
+
+func (a *App) MarketGetQuotes(symbols []string) ([]market.Quote, error) {
+	return market.FetchMultiQuotes(symbols)
+}
+
+func (a *App) MarketGetChart(symbol, rng string) ([]market.OHLC, error) {
+	return market.FetchChart(symbol, rng)
+}
+
 // PlaygroundMessage mirrors ai.ChatMessage for Wails binding generation.
 type PlaygroundMessage struct {
 	Role    string `json:"role"`
@@ -529,6 +574,13 @@ func (a *App) PickFile(accept string) (string, error) {
 
 // SaveTempBlob writes a base64-encoded blob (e.g. recorded audio from MediaRecorder)
 // to a temp file and returns its path. Used by voice note sending.
+// SaveBase64Image writes a base64-encoded image (e.g. from Gemini Imagen) to a
+// temp PNG file and returns its path. Used to bridge inline image data into
+// WhatsApp media uploads.
+func (a *App) SaveBase64Image(b64 string) (string, error) {
+	return a.SaveTempBlob(b64, ".png")
+}
+
 func (a *App) SaveTempBlob(b64 string, ext string) (string, error) {
 	clean := strings.TrimSpace(b64)
 	if idx := strings.Index(clean, ","); idx >= 0 {

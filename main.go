@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend/dist
@@ -21,8 +22,8 @@ func main() {
 		Title:     "Wakupi",
 		Width:     1280,
 		Height:    800,
-		MinWidth:  900,
-		MinHeight: 600,
+		MinWidth:  1024,
+		MinHeight: 620,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			Middleware: func(next http.Handler) http.Handler {
@@ -43,6 +44,13 @@ func main() {
 		},
 		Linux: &linux.Options{
 			ProgramName: "wakupi",
+		},
+		Windows: &windows.Options{
+			Theme:                windows.SystemDefault,
+			DisablePinchZoom:     true,
+			IsZoomControlEnabled: false,
+			EnableSwipeGestures:  false,
+			ResizeDebounceMS:     16,
 		},
 	})
 

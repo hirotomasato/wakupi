@@ -4,6 +4,7 @@ import {main} from '../models';
 import {ai} from '../models';
 import {desktop} from '../models';
 import {wa} from '../models';
+import {market} from '../models';
 import {http} from '../models';
 
 export function AIChat(arg1:string,arg2:Array<main.PlaygroundMessage>,arg3:main.PlaygroundOptions):Promise<void>;
@@ -11,6 +12,14 @@ export function AIChat(arg1:string,arg2:Array<main.PlaygroundMessage>,arg3:main.
 export function AIChatCancel():Promise<void>;
 
 export function AICompose(arg1:string,arg2:string):Promise<string>;
+
+export function AIGenerateImage(arg1:string,arg2:ai.ImageOptions):Promise<Array<ai.ImageResult>>;
+
+export function AIGetGamAPIModels():Promise<Array<string>>;
+
+export function AIGetGamAPIRatios():Promise<Record<string, string>>;
+
+export function AIGetGamAPIStyles():Promise<Record<string, string>>;
 
 export function AIListModels(arg1:ai.Config):Promise<Array<string>>;
 
@@ -72,6 +81,12 @@ export function Logout(arg1:string):Promise<void>;
 
 export function MarkRead(arg1:string,arg2:string,arg3:string,arg4:Array<string>):Promise<void>;
 
+export function MarketGetChart(arg1:string,arg2:string):Promise<Array<market.OHLC>>;
+
+export function MarketGetQuote(arg1:string):Promise<market.Quote>;
+
+export function MarketGetQuotes(arg1:Array<string>):Promise<Array<market.Quote>>;
+
 export function MediaHTTPHandler():Promise<http.Handler>;
 
 export function MuteChat(arg1:string,arg2:string,arg3:number):Promise<void>;
@@ -91,6 +106,8 @@ export function Quit():Promise<void>;
 export function ReactMessage(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
 export function RefreshAvatar(arg1:string,arg2:string):Promise<void>;
+
+export function SaveBase64Image(arg1:string):Promise<string>;
 
 export function SaveTempBlob(arg1:string,arg2:string):Promise<string>;
 

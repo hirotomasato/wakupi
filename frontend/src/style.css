@@ -4,9 +4,14 @@
 
 @layer base {
   html, body, #app {
-    height: 100vh;
+    height: 100%;
+    width: 100%;
     margin: 0;
     overflow: hidden;
+  }
+  html {
+    /* Prevent WebView2 quirks on Windows with viewport sizing */
+    -webkit-text-size-adjust: 100%;
   }
   body {
     @apply font-sans text-wa-text bg-wa-bg;
@@ -15,6 +20,20 @@
   }
   .dark body {
     @apply text-wa-text-dark bg-wa-bg-dark;
+  }
+
+  /* Dark mode native selects — keep background consistent */
+  .dark select {
+    color-scheme: dark;
+    @apply text-wa-text-dark;
+  }
+
+  /* Prevent selects from showing white briefly in WebView */
+  select {
+    color-scheme: light;
+  }
+  .dark select {
+    color-scheme: dark;
   }
 }
 

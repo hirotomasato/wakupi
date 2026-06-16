@@ -28,6 +28,7 @@ const presets = [
   { id: 'anthropic', label: 'Anthropic Claude', provider: 'anthropic', baseUrl: '', model: 'claude-haiku-4-5-20251001' },
   { id: 'gemini', label: 'Google Gemini', provider: 'gemini', baseUrl: '', model: 'gemini-1.5-flash' },
   { id: 'ollama', label: 'Ollama (Lokal)', provider: 'ollama', baseUrl: 'http://localhost:11434/api/chat', model: 'llama3.2' },
+  { id: 'gamapi', label: 'GamAPI (Image Gen)', provider: 'gamapi', baseUrl: '', model: 'imagen-3-flash' },
   { id: 'lmstudio', label: 'LM Studio (Lokal)', provider: 'openai', baseUrl: 'http://localhost:1234/v1/chat/completions', model: '' },
   { id: 'localai', label: 'LocalAI (Lokal)', provider: 'openai', baseUrl: 'http://localhost:8080/v1/chat/completions', model: '' },
   { id: 'openrouter', label: 'OpenRouter', provider: 'openai', baseUrl: 'https://openrouter.ai/api/v1/chat/completions', model: 'anthropic/claude-3.5-haiku' },
@@ -123,14 +124,15 @@ async function loadModels() {
         <div class="border-t border-wa-border dark:border-wa-border-dark pt-4 space-y-3">
           <div>
             <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Provider</label>
-            <select v-model="local.provider" class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none">
+            <select v-model="local.provider" class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none text-wa-text dark:text-wa-text-dark">
               <option value="openai">OpenAI / OpenAI-compatible</option>
               <option value="anthropic">Anthropic Claude</option>
               <option value="gemini">Google Gemini</option>
               <option value="ollama">Ollama</option>
+              <option value="gamapi">GamAPI (Image Generation)</option>
             </select>
             <p class="text-xs text-wa-muted dark:text-wa-muted-dark mt-1">
-              Pilih "OpenAI" untuk OpenRouter, Groq, LM Studio, Together, dll.
+              Pilih "OpenAI" untuk OpenRouter, Groq, LM Studio, Together, dll. GamAPI khusus image generation.
             </p>
           </div>
 
@@ -138,7 +140,7 @@ async function loadModels() {
             <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Base URL</label>
             <input
               v-model="local.baseUrl"
-              placeholder="https://api.openai.com/v1/chat/completions"
+              :placeholder="local.provider === 'gamapi' ? 'https://gamapi.proaccess.app/api' : 'https://api.openai.com/v1/chat/completions'"
               class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none font-mono text-xs"
             />
           </div>
@@ -200,6 +202,7 @@ async function loadModels() {
           <p>• Ollama: <code>ollama pull llama3.2</code> lalu pilih preset Ollama</p>
           <p>• LM Studio: download dari lmstudio.ai, load model, start server</p>
           <p>• OpenRouter: punya banyak model gratis (DeepSeek, Llama, Gemini)</p>
+          <p>• GamAPI: image generation gratis — punya 14 model, unlimited quota</p>
         </div>
       </div>
 
