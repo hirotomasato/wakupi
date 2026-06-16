@@ -424,6 +424,10 @@ func (m *Manager) handleHistorySync(s *Session, e *events.HistorySync) {
 		if err != nil {
 			continue
 		}
+		// Skip status broadcast — it's not a real chat.
+		if jid == types.StatusBroadcastJID {
+			continue
+		}
 		isGroup := jid.Server == types.GroupServer
 		name := m.resolveName(s, jid, conv.GetName())
 

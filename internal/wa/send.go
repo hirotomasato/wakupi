@@ -275,9 +275,21 @@ func (m *Manager) DeleteMessage(ctx context.Context, sessionID, jidStr, messageI
 		return err
 	}
 	if forEveryone {
+		// Server will echo a revoke protocol message; handleMessage picks it up
+		// and calls MarkDeleted + emit("wa:deleted") for us.
 		_, err := s.Client.SendMessage(ctx, jid, s.Client.BuildRevoke(jid, types.EmptyJID, types.MessageID(messageID)))
 		return err
 	}
+	// Delete-for-me: server does NOT notify us, so handle locally.
+	if err := m.store.MarkDeleted(ctx, sessionID, jidStr, messageID); err != nil {
+		return err
+	}
+	m.emit("wa:deleted", DeletedInfo{
+		AccountID: sessionID,
+		JID:       jidStr,
+		MessageID: messageID,
+		Sender:    "",
+	})
 	return nil
 }
 

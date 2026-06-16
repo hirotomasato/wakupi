@@ -79,6 +79,10 @@ export const useStatusStore = defineStore('status', () => {
   async function postImage(accountId: string, caption: string = '') {
     const path = await PickFile('image').catch(() => '')
     if (!path) return
+    await postImagePath(accountId, path, caption)
+  }
+
+  async function postImagePath(accountId: string, path: string, caption: string) {
     await PostStatusImage(accountId, path, caption)
   }
 
@@ -101,6 +105,7 @@ export const useStatusStore = defineStore('status', () => {
     bindEvents,
     postText,
     postImage,
+    postImagePath,
     openViewer,
     closeViewer,
   }

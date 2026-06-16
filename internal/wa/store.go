@@ -88,17 +88,54 @@ func (s *Store) migrate() error {
 			key   TEXT PRIMARY KEY,
 			value TEXT
 		)`,
-		`ALTER TABLE chats ADD COLUMN pinned INTEGER DEFAULT 0`,
-		`ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0`,
-		`ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0`,
-		`ALTER TABLE chats ADD COLUMN blocked INTEGER DEFAULT 0`,
-		`ALTER TABLE messages ADD COLUMN starred INTEGER DEFAULT 0`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {
-			// ALTER may fail if column already exists; ignore those.
-			continue
+			return fmt.Errorf("migration error: %w", err)
 		}
+	}
+
+	// Add columns that may not exist in older databases. Only ignore the
+	// "duplicate column" error so we don't silently swallow real problems.
+	alters := []struct{ table, column, def string }{
+		{"chats", "pinned", "INTEGER DEFAULT 0"},
+		{"chats", "archived", "INTEGER DEFAULT 0"},
+		{"chats", "muted_until", "INTEGER DEFAULT 0"},
+		{"chats", "blocked", "INTEGER DEFAULT 0"},
+		{"messages", "starred", "INTEGER DEFAULT 0"},
+	}
+	for _, a := range alters {
+		if err := s.addColumnIfNotExists(a.table, a.column, a.def); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) addColumnIfNotExists(table, column, def string) error {
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return fmt.Errorf("pragma table_info %s: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil // already exists
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	q := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, def)
+	if _, err := s.db.Exec(q); err != nil {
+		return fmt.Errorf("alter table %s add column %s: %w", table, column, err)
 	}
 	return nil
 }

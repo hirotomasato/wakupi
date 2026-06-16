@@ -252,7 +252,11 @@ export const usePlaygroundStore = defineStore('playground', () => {
   function cancel() {
     if (!streaming.value) return
     AIChatCancel()
-    // done event will flip streaming off; guard in case it doesn't fire.
+    // Immediately clean up state so late-arriving events from the cancelled
+    // stream are filtered out by their streamId check. The done handler may
+    // also fire later but will be a no-op since the IDs no longer match.
+    streamId.value = ''
+    streamSessionId.value = ''
     streaming.value = false
   }
 

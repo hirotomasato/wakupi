@@ -121,6 +121,37 @@ interface BackendDeleted {
   sender: string
 }
 
+// --- localStorage persistence for last-viewed selection ---
+// Backend persists chats + messages in SQLite, but the frontend Pinia store
+// lives only in memory. On reload the chat list re-pulls from the DB, but
+// the previously active chat is forgotten and its history is never loaded
+// until the user clicks it. Persist the selection so reopen lands the user
+// back on the same chat (and triggers loadHistoryForChat for it).
+const LS_ACTIVE_ACCOUNT = 'wakupi:activeAccountId'
+const lsActiveChat = (accountId: string) => `wakupi:activeChatId:${accountId}`
+
+function loadPersistedAccount(): string {
+  try { return localStorage.getItem(LS_ACTIVE_ACCOUNT) || '' } catch { return '' }
+}
+function loadPersistedChat(accountId: string): string {
+  if (!accountId) return ''
+  try { return localStorage.getItem(lsActiveChat(accountId)) || '' } catch { return '' }
+}
+function saveActiveAccount(id: string) {
+  try {
+    if (id) localStorage.setItem(LS_ACTIVE_ACCOUNT, id)
+    else localStorage.removeItem(LS_ACTIVE_ACCOUNT)
+  } catch {}
+}
+function saveActiveChat(accountId: string, chatId: string) {
+  try {
+    if (accountId && chatId) localStorage.setItem(lsActiveChat(accountId), chatId)
+  } catch {}
+}
+function clearPersistedChat(accountId: string) {
+  try { if (accountId) localStorage.removeItem(lsActiveChat(accountId)) } catch {}
+}
+
 function formatTime(unix: number): string {
   if (!unix) return ''
   const d = new Date(unix * 1000)
@@ -134,6 +165,9 @@ function formatTime(unix: number): string {
   if (d.toDateString() === yesterday.toDateString()) return 'Kemarin'
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
+
+// Prevent concurrent LoadChats calls for the same account.
+const _loadingChats = new Set<string>()
 
 export const useChatStore = defineStore('chat', () => {
   const accounts = ref<Account[]>([])
@@ -437,30 +471,66 @@ export const useChatStore = defineStore('chat', () => {
     selectChat(id)
   }
 
+  // tryRestoreChatForAccount selects the persisted chat if it exists in the
+  // current chat list, loading its message history. Only restores when no
+  // chat is active yet — if the user has manually selected a chat we don't
+  // yank them away.
+  async function tryRestoreChatForAccount(accountId: string): Promise<boolean> {
+    const saved = loadPersistedChat(accountId)
+    if (!saved) return false
+    if (!chats.value.some((c) => c.id === saved)) return false
+    if (activeChatId.value === saved) return true // already active
+    selectChat(saved)
+    return true
+  }
+
   async function refreshSessions() {
     try {
+      // Restore last-viewed account first so applySessions doesn't override it
+      // with the first account in the list.
+      const savedAccount = loadPersistedAccount()
+      if (savedAccount) activeAccountId.value = savedAccount
+
       const list = (await ListSessions()) as unknown as BackendSession[]
       applySessions(list || [])
+
+      // If the saved account no longer exists, fall back to whatever
+      // applySessions picked (first account) and persist that.
+      if (savedAccount && !accounts.value.some((a) => a.id === savedAccount)) {
+        if (activeAccountId.value) saveActiveAccount(activeAccountId.value)
+      }
+
       for (const s of list || []) {
         await loadChatsForAccount(s.id)
       }
+      // loadChatsForAccount already calls tryRestoreChatForAccount internally.
     } catch (e) {
       console.error('ListSessions error', e)
     }
   }
 
   async function loadChatsForAccount(accountId: string) {
+    if (_loadingChats.has(accountId)) return
+    _loadingChats.add(accountId)
     try {
       const list = (await LoadChats(accountId)) as unknown as BackendChat[]
       for (const c of list || []) {
         upsertChat({ ...c, accountId, jid: c.jid })
       }
-      // Only load messages for the active chat, not all chats
-      if (activeChat.value && activeChat.value.accountId === accountId) {
+
+      // Always try to restore the persisted chat for this account first —
+      // selectChat will auto-load history via loadHistoryForChat if needed.
+      const restored = await tryRestoreChatForAccount(accountId)
+
+      // If we didn't restore (no persisted chat or it's not in the list yet),
+      // still honour the caller's currently active chat.
+      if (!restored && activeChat.value && activeChat.value.accountId === accountId) {
         await loadHistoryForChat(accountId, activeChat.value.jid)
       }
     } catch (e) {
       console.error('LoadChats error', e)
+    } finally {
+      _loadingChats.delete(accountId)
     }
   }
 
@@ -493,8 +563,17 @@ export const useChatStore = defineStore('chat', () => {
       await Logout(id)
       accounts.value = accounts.value.filter((a) => a.id !== id)
       chats.value = chats.value.filter((c) => c.accountId !== id)
+      // Bersihkan messages milik akun yang logout
+      for (const key of Object.keys(messages.value)) {
+        if (key.startsWith(`${id}::`)) {
+          delete messages.value[key]
+        }
+      }
       if (activeAccountId.value === id) {
         activeAccountId.value = accounts.value[0]?.id || ''
+      }
+      if (activeChatId.value && activeChatId.value.startsWith(`${id}::`)) {
+        activeChatId.value = null
       }
     } catch (e) {
       console.error('logout error', e)
@@ -504,6 +583,7 @@ export const useChatStore = defineStore('chat', () => {
   function selectAccount(id: string) {
     activeAccountId.value = id
     activeChatId.value = null
+    saveActiveAccount(id)
     // Load chats for the selected account
     loadChatsForAccount(id).catch(() => {})
   }
@@ -514,6 +594,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!c) return
     c.unread = 0
     replyTo.value = null
+    saveActiveChat(c.accountId, id)
 
     if (!messages.value[id] || messages.value[id].length === 0) {
       loadHistoryForChat(c.accountId, c.jid).catch(() => {})
@@ -836,6 +917,19 @@ export const useChatStore = defineStore('chat', () => {
     EventsOn('wa:logged_out', (s: BackendSession) => {
       accounts.value = accounts.value.filter((a) => a.id !== s.id)
       chats.value = chats.value.filter((c) => c.accountId !== s.id)
+      for (const key of Object.keys(messages.value)) {
+        if (key.startsWith(`${s.id}::`)) {
+          delete messages.value[key]
+        }
+      }
+      clearPersistedChat(s.id)
+      if (activeAccountId.value === s.id) {
+        activeAccountId.value = accounts.value[0]?.id || ''
+        saveActiveAccount(activeAccountId.value)
+      }
+      if (activeChatId.value && activeChatId.value.startsWith(`${s.id}::`)) {
+        activeChatId.value = null
+      }
     })
     EventsOn('wa:chat', (c: BackendChat) => upsertChat(c))
     EventsOn('wa:message', (m: BackendMessage) => appendMessage(m))
