@@ -96,47 +96,6 @@ export namespace cs {
 
 }
 
-export namespace desktop {
-	
-	export class AppInfo {
-	    name: string;
-	    pid: number;
-	    icon?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AppInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.pid = source["pid"];
-	        this.icon = source["icon"];
-	    }
-	}
-	export class MediaInfo {
-	    title: string;
-	    artist: string;
-	    album: string;
-	    playing: boolean;
-	    player: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new MediaInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.title = source["title"];
-	        this.artist = source["artist"];
-	        this.album = source["album"];
-	        this.playing = source["playing"];
-	        this.player = source["player"];
-	    }
-	}
-
-}
-
 export namespace main {
 	
 	export class PlaygroundMessage {

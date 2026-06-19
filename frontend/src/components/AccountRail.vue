@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, MessageCircle, Circle, Settings as SettingsIcon, Sparkles, Headset, Image, User, Star, Search, Archive, Bot, TrendingUp, Monitor } from '@lucide/vue'
+import { Plus, MessageCircle, Circle, Settings as SettingsIcon, Sparkles, Headset, Image, User, Star, Search, Archive, Bot, TrendingUp } from '@lucide/vue'
 import { useChatStore } from '../stores/chat'
 import { useStatusStore } from '../stores/status'
 import { useUIStore } from '../stores/ui'
 import { useAIStore } from '../stores/ai'
 import { useCSBotStore } from '../stores/csbot'
 import QrisDashboard from './QrisDashboard.vue'
-import DesktopPanel from './DesktopPanel.vue'
 
 const store = useChatStore()
 const status = useStatusStore()
@@ -18,8 +17,6 @@ const cs = useCSBotStore()
 const emit = defineEmits<{ (e: 'open-settings'): void }>()
 
 const showQrisDashboard = ref(false)
-const showDesktopPanel = ref(false)
-
 async function handleQrisSendToChat(amount: number, qrDataUrl: string) {
   const caption = `💳 Invoice QRIS - Rp ${new Intl.NumberFormat('id-ID').format(amount)}`
   await store.sendImageBlob(qrDataUrl, caption)
@@ -183,14 +180,6 @@ const csDotColor = computed(() => {
     </button>
 
     <button
-      @click="showDesktopPanel = true"
-      class="w-11 h-11 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition"
-      title="Desktop Controller"
-    >
-      <Monitor :size="20" />
-    </button>
-
-    <button
       @click="ui.showProfile = true"
       class="w-11 h-11 rounded-full flex items-center justify-center text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark transition"
       title="Profil"
@@ -207,7 +196,6 @@ const csDotColor = computed(() => {
     </button>
 
     <QrisDashboard v-if="showQrisDashboard" @close="showQrisDashboard = false" @send-to-chat="handleQrisSendToChat" />
-    <DesktopPanel v-if="showDesktopPanel" @close="showDesktopPanel = false" />
   </aside>
 </template>
 

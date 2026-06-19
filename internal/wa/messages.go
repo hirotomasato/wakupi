@@ -15,9 +15,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
-
-	"wakupi/internal/desktop"
 )
 
 func (m *Manager) handleMessage(s *Session, e *events.Message) {
@@ -63,19 +60,6 @@ func (m *Manager) handleMessage(s *Session, e *events.Message) {
 	}
 
 	enrichFromMessage(&mi, e.Message)
-
-	// Desktop command detection: !command
-	if strings.HasPrefix(mi.Text, "!") && m.dc != nil {
-		go func(session *Session, jid types.JID, text string) {
-			response := desktop.HandleCommand(m.dc, text)
-			if response != "" {
-				_, _ = session.Client.SendMessage(context.Background(), jid, &waE2E.Message{
-					Conversation: proto.String(response),
-				})
-			}
-		}(s, chatJID, mi.Text)
-		return
-	}
 
 	// CS Bot auto-reply hook — runs async, does not block the pipeline.
 	if m.csHook != nil && !e.Info.IsFromMe && !isStatus && mi.Text != "" {

@@ -18,8 +18,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"wakupi/internal/desktop"
-
 	_ "modernc.org/sqlite"
 )
 
@@ -39,7 +37,6 @@ type Manager struct {
 	clients   map[string]*Session
 	avatarMu  sync.Mutex
 	avatarReq map[string]bool
-	dc        desktop.Controller
 	csHook    CSBotHook
 }
 
@@ -179,7 +176,6 @@ func NewManager(dataDir string, emit EventEmitter) (*Manager, error) {
 		store:     appStore,
 		clients:   make(map[string]*Session),
 		avatarReq: make(map[string]bool),
-		dc:        desktop.New(),
 	}, nil
 }
 

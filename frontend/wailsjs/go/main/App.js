@@ -62,50 +62,6 @@ export function DeleteMessage(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DeleteMessage'](arg1, arg2, arg3, arg4);
 }
 
-export function DesktopCloseApp(arg1) {
-  return window['go']['main']['App']['DesktopCloseApp'](arg1);
-}
-
-export function DesktopGetVolume() {
-  return window['go']['main']['App']['DesktopGetVolume']();
-}
-
-export function DesktopListApps() {
-  return window['go']['main']['App']['DesktopListApps']();
-}
-
-export function DesktopLockScreen() {
-  return window['go']['main']['App']['DesktopLockScreen']();
-}
-
-export function DesktopMediaNext() {
-  return window['go']['main']['App']['DesktopMediaNext']();
-}
-
-export function DesktopMediaNowPlaying() {
-  return window['go']['main']['App']['DesktopMediaNowPlaying']();
-}
-
-export function DesktopMediaPlayPause() {
-  return window['go']['main']['App']['DesktopMediaPlayPause']();
-}
-
-export function DesktopMediaPrev() {
-  return window['go']['main']['App']['DesktopMediaPrev']();
-}
-
-export function DesktopOpenApp(arg1) {
-  return window['go']['main']['App']['DesktopOpenApp'](arg1);
-}
-
-export function DesktopScreenshot() {
-  return window['go']['main']['App']['DesktopScreenshot']();
-}
-
-export function DesktopSetVolume(arg1) {
-  return window['go']['main']['App']['DesktopSetVolume'](arg1);
-}
-
 export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }

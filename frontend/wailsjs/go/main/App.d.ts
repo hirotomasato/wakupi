@@ -3,7 +3,6 @@
 import {main} from '../models';
 import {ai} from '../models';
 import {cs} from '../models';
-import {desktop} from '../models';
 import {wa} from '../models';
 import {market} from '../models';
 import {http} from '../models';
@@ -37,28 +36,6 @@ export function BlockChat(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 export function CSBotTestConnection(arg1:cs.CSConfig):Promise<void>;
 
 export function DeleteMessage(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
-
-export function DesktopCloseApp(arg1:string):Promise<void>;
-
-export function DesktopGetVolume():Promise<number>;
-
-export function DesktopListApps():Promise<Array<desktop.AppInfo>>;
-
-export function DesktopLockScreen():Promise<void>;
-
-export function DesktopMediaNext():Promise<void>;
-
-export function DesktopMediaNowPlaying():Promise<desktop.MediaInfo>;
-
-export function DesktopMediaPlayPause():Promise<void>;
-
-export function DesktopMediaPrev():Promise<void>;
-
-export function DesktopOpenApp(arg1:string):Promise<void>;
-
-export function DesktopScreenshot():Promise<string>;
-
-export function DesktopSetVolume(arg1:number):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;
 

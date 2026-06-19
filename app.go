@@ -17,7 +17,6 @@ import (
 
 	"wakupi/internal/ai"
 	"wakupi/internal/cs"
-	"wakupi/internal/desktop"
 	"wakupi/internal/market"
 	"wakupi/internal/wa"
 )
@@ -28,7 +27,6 @@ type App struct {
 	ai  *ai.Service
 	cs  *cs.Bot
 	imageGen *ai.Service
-	dc  desktop.Controller
 
 	aiStreamMu     sync.Mutex
 	aiStreamCancel context.CancelFunc
@@ -53,7 +51,6 @@ func (a *App) startup(ctx context.Context) {
 	a.ai = ai.New(a.loadAIConfig())
 	a.imageGen = ai.New(a.loadImageGenConfig())
 	a.cs = cs.New(a.loadCSBotConfig())
-	a.dc = desktop.New()
 
 	// Wire CS Bot hook into the WhatsApp manager so every incoming
 	// text message is forwarded to the bot for auto-reply.
@@ -722,82 +719,3 @@ func (a *App) SaveTempBlob(b64 string, ext string) (string, error) {
 	}
 	return f.Name(), nil
 }
-
-	// === Desktop Controller ===
-
-	func (a *App) DesktopListApps() ([]desktop.AppInfo, error) {
-		if a.dc == nil {
-			return nil, fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.ListRunningApps()
-	}
-
-	func (a *App) DesktopOpenApp(name string) error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.OpenApp(name)
-	}
-
-	func (a *App) DesktopCloseApp(name string) error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.CloseApp(name)
-	}
-
-	func (a *App) DesktopMediaPlayPause() error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.MediaPlayPause()
-	}
-
-	func (a *App) DesktopMediaNext() error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.MediaNext()
-	}
-
-	func (a *App) DesktopMediaPrev() error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.MediaPrev()
-	}
-
-	func (a *App) DesktopMediaNowPlaying() (*desktop.MediaInfo, error) {
-		if a.dc == nil {
-			return nil, fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.MediaNowPlaying()
-	}
-
-	func (a *App) DesktopGetVolume() (int, error) {
-		if a.dc == nil {
-			return 0, fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.GetVolume()
-	}
-
-	func (a *App) DesktopSetVolume(pct int) error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.SetVolume(pct)
-	}
-
-	func (a *App) DesktopScreenshot() (string, error) {
-		if a.dc == nil {
-			return "", fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.TakeScreenshot()
-	}
-
-	func (a *App) DesktopLockScreen() error {
-		if a.dc == nil {
-			return fmt.Errorf("desktop controller not ready")
-		}
-		return a.dc.LockScreen()
-	}
