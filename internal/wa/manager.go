@@ -25,6 +25,10 @@ import (
 
 type EventEmitter func(name string, data ...interface{})
 
+// CSBotHook is called for every incoming non-self, non-status message.
+// It runs in a goroutine so the message pipeline is not blocked.
+type CSBotHook func(s *Session, text string, chatJID types.JID, pushName string)
+
 type Manager struct {
 	mu        sync.RWMutex
 	emit      EventEmitter
@@ -36,6 +40,14 @@ type Manager struct {
 	avatarMu  sync.Mutex
 	avatarReq map[string]bool
 	dc        desktop.Controller
+	csHook    CSBotHook
+}
+
+// SetCSBotHook registers a hook that fires for every incoming non-self
+// text message. The hook runs in a goroutine and does not block the
+// message pipeline.
+func (m *Manager) SetCSBotHook(hook CSBotHook) {
+	m.csHook = hook
 }
 
 type Session struct {

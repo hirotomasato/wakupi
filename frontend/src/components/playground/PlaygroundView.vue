@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { MessageSquareText, Image as ImageIcon, BarChart3 } from '@lucide/vue'
+import { MessageSquareText, BarChart3 } from '@lucide/vue'
 import { usePlaygroundStore } from '../../stores/playground'
 import { useUIStore } from '../../stores/ui'
 import PlaygroundSessions from './PlaygroundSessions.vue'
 import PlaygroundChat from './PlaygroundChat.vue'
-import PlaygroundImages from './PlaygroundImages.vue'
 import PlaygroundMarket from './PlaygroundMarket.vue'
 import PlaygroundParams from './PlaygroundParams.vue'
 import SendToWhatsAppModal from './SendToWhatsAppModal.vue'
@@ -39,15 +38,6 @@ onMounted(() => pg.bindEvents())
           <MessageSquareText :size="16" /> Chat
         </button>
         <button
-          @click="pg.pgTab = 'image'"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-sm font-medium transition"
-          :class="pg.pgTab === 'image'
-            ? 'bg-white dark:bg-[#0b141a] text-wa-green border border-b-white dark:border-b-[#0b141a] border-wa-border dark:border-wa-border-dark'
-            : 'text-wa-muted dark:text-wa-muted-dark hover:text-wa-text dark:hover:text-wa-text-dark'"
-        >
-          <ImageIcon :size="16" /> Image
-        </button>
-        <button
           @click="pg.pgTab = 'market'"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-sm font-medium transition"
           :class="pg.pgTab === 'market'
@@ -60,7 +50,6 @@ onMounted(() => pg.bindEvents())
 
       <div class="flex-1 min-h-0">
         <PlaygroundChat v-show="pg.pgTab === 'chat'" />
-        <PlaygroundImages v-show="pg.pgTab === 'image'" />
         <PlaygroundMarket v-if="pg.pgTab === 'market'" />
       </div>
     </div>

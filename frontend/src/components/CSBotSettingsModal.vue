@@ -1,25 +1,20 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { X, Sparkles, Save, Zap, CheckCircle2, XCircle, Loader2, RefreshCw } from '@lucide/vue'
-import { useAIStore } from '../stores/ai'
+import { X, Headset, Save, CheckCircle2, Loader2, MessageCircle } from '@lucide/vue'
+import { useCSBotStore, defaults } from '../stores/csbot'
 import { useUIStore } from '../stores/ui'
 
-const ai = useAIStore()
+const cs = useCSBotStore()
 const ui = useUIStore()
-const local = ref<any>({ ...ai.config })
+const local = ref<any>({ ...cs.config })
 const saving = ref(false)
 const message = ref('')
-const models = ref<string[]>([])
-const loadingModels = ref(false)
-const modelsError = ref('')
 
-watch(() => ui.showAISettings, async (open) => {
+watch(() => ui.showCSBotSettings, async (open) => {
   if (open) {
-    if (!ai.loaded) await ai.load()
-    local.value = { ...ai.config }
+    if (!cs.loaded) await cs.load()
+    local.value = { ...cs.config, systemPrompt: cs.config.systemPrompt || '' }
     message.value = ''
-    models.value = []
-    modelsError.value = ''
   }
 })
 
@@ -28,13 +23,9 @@ const presets = [
   { id: 'anthropic', label: 'Anthropic Claude', provider: 'anthropic', baseUrl: '', model: 'claude-haiku-4-5-20251001' },
   { id: 'gemini', label: 'Google Gemini', provider: 'gemini', baseUrl: '', model: 'gemini-1.5-flash' },
   { id: 'ollama', label: 'Ollama (Lokal)', provider: 'ollama', baseUrl: 'http://localhost:11434/api/chat', model: 'llama3.2' },
-  { id: 'lmstudio', label: 'LM Studio (Lokal)', provider: 'openai', baseUrl: 'http://localhost:1234/v1/chat/completions', model: '' },
-  { id: 'localai', label: 'LocalAI (Lokal)', provider: 'openai', baseUrl: 'http://localhost:8080/v1/chat/completions', model: '' },
   { id: 'openrouter', label: 'OpenRouter', provider: 'openai', baseUrl: 'https://openrouter.ai/api/v1/chat/completions', model: 'anthropic/claude-3.5-haiku' },
-  { id: 'groq', label: 'Groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.1-70b-versatile' },
-  { id: 'together', label: 'Together AI', provider: 'openai', baseUrl: 'https://api.together.xyz/v1/chat/completions', model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
   { id: 'deepseek', label: 'DeepSeek', provider: 'openai', baseUrl: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
-  { id: 'mistral', label: 'Mistral', provider: 'openai', baseUrl: 'https://api.mistral.ai/v1/chat/completions', model: 'mistral-small-latest' },
+  { id: 'groq', label: 'Groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.1-70b-versatile' },
   { id: 'custom', label: 'Custom (OpenAI-compatible)', provider: 'openai', baseUrl: '', model: '' },
 ]
 
@@ -51,9 +42,12 @@ const needsKey = computed(() => {
 async function save() {
   saving.value = true
   try {
-    await ai.save(local.value)
-    message.value = 'Pengaturan AI tersimpan'
-    if (local.value.enabled) ai.testConnection(local.value)
+    await cs.save(local.value)
+    message.value = 'Pengaturan CS Bot tersimpan'
+    if (local.value.enabled) {
+      const ok = await cs.testConnection(local.value)
+      if (!ok) message.value = 'Tersimpan, tapi koneksi gagal: ' + cs.connMessage
+    }
     setTimeout(() => (message.value = ''), 1500)
   } catch (e: any) {
     message.value = 'Gagal: ' + (e?.message || e)
@@ -63,43 +57,29 @@ async function save() {
 }
 
 async function testNow() {
-  await ai.testConnection(local.value)
-}
-
-async function loadModels() {
-  loadingModels.value = true
-  modelsError.value = ''
-  try {
-    models.value = await ai.listModels(local.value)
-    if (models.value.length === 0) modelsError.value = 'Tidak ada model ditemukan'
-  } catch (e: any) {
-    modelsError.value = 'Provider tidak mendukung daftar model — ketik manual'
-    console.error('list models', e)
-  } finally {
-    loadingModels.value = false
-  }
+  await cs.testConnection(local.value)
 }
 </script>
 
 <template>
-  <div v-if="ui.showAISettings" class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center" @click.self="ui.showAISettings = false">
+  <div v-if="ui.showCSBotSettings" class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center" @click.self="ui.showCSBotSettings = false">
     <div class="w-[600px] max-w-[92vw] max-h-[88vh] bg-white dark:bg-wa-panel-dark rounded-2xl shadow-2xl overflow-hidden flex flex-col">
       <header class="flex items-center justify-between px-5 py-3 border-b border-wa-border dark:border-wa-border-dark">
         <div class="flex items-center gap-2">
-          <Sparkles :size="18" class="text-violet-500" />
-          <h2 class="font-semibold">AI Assistant</h2>
+          <Headset :size="18" class="text-blue-500" />
+          <h2 class="font-semibold">CS Bot — Auto Reply</h2>
         </div>
-        <button @click="ui.showAISettings = false" class="text-wa-muted dark:text-wa-muted-dark"><X :size="18" /></button>
+        <button @click="ui.showCSBotSettings = false" class="text-wa-muted dark:text-wa-muted-dark"><X :size="18" /></button>
       </header>
 
       <div class="flex-1 overflow-y-auto p-5 space-y-5">
         <p class="text-sm text-wa-muted dark:text-wa-muted-dark">
-          Aktifkan AI Chat untuk Playground, Smart Reply, AI Compose, dan ringkas chat. Setting ini hanya untuk chat — Image Generator dan CS Bot punya pengaturan sendiri.
+          Aktifkan CS Bot untuk auto-reply otomatis ke setiap pesan masuk. CS Bot pakai AI provider dan API key terpisah dari AI personal (Playground).
         </p>
 
         <label class="flex items-center justify-between p-3 bg-wa-panel dark:bg-wa-hover-dark rounded-lg cursor-pointer">
           <span class="text-sm font-medium flex items-center gap-2">
-            <Zap :size="16" class="text-amber-500" /> Aktifkan AI
+            <MessageCircle :size="16" class="text-blue-500" /> Aktifkan CS Bot
           </span>
           <input v-model="local.enabled" type="checkbox" class="w-4 h-4 accent-wa-green" />
         </label>
@@ -111,8 +91,8 @@ async function loadModels() {
               v-for="p in presets"
               :key="p.id"
               @click="pickPreset(p)"
-              class="text-left text-sm px-3 py-2 rounded-lg border border-wa-border dark:border-wa-border-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark"
-              :class="{ 'border-wa-green bg-wa-green/5': local.baseUrl === p.baseUrl && local.provider === p.provider }"
+              class="text-left text-sm px-3 py-2 rounded-lg border border-wa-border dark:border-wa-border-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark transition"
+              :class="{ 'border-blue-500 bg-blue-500/5 dark:bg-blue-500/10': local.baseUrl === p.baseUrl && local.provider === p.provider }"
             >
               <div class="font-medium">{{ p.label }}</div>
               <div class="text-xs text-wa-muted dark:text-wa-muted-dark truncate">{{ p.baseUrl || 'default' }}</div>
@@ -129,45 +109,24 @@ async function loadModels() {
               <option value="gemini">Google Gemini</option>
               <option value="ollama">Ollama</option>
             </select>
-            <p class="text-xs text-wa-muted dark:text-wa-muted-dark mt-1">
-              Pilih "OpenAI" untuk OpenRouter, Groq, LM Studio, Together, dll.
-            </p>
           </div>
 
           <div>
             <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Base URL</label>
             <input
               v-model="local.baseUrl"
-              :placeholder="'https://api.openai.com/v1/chat/completions'"
+              placeholder="https://api.openai.com/v1/chat/completions"
               class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none font-mono text-xs"
             />
           </div>
 
           <div>
             <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Model</label>
-            <div class="flex gap-2 mt-1">
-              <input
-                v-model="local.model"
-                list="ai-model-list"
-                placeholder="gpt-4o-mini"
-                class="flex-1 bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none font-mono text-xs"
-              />
-              <button
-                @click="loadModels"
-                :disabled="loadingModels"
-                class="shrink-0 px-3 py-2 rounded-lg border border-wa-border dark:border-wa-border-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm flex items-center gap-1.5 disabled:opacity-50"
-                title="Muat daftar model dari provider"
-              >
-                <Loader2 v-if="loadingModels" :size="14" class="animate-spin" />
-                <RefreshCw v-else :size="14" />
-                Muat model
-              </button>
-            </div>
-            <datalist id="ai-model-list">
-              <option v-for="m in models" :key="m" :value="m" />
-            </datalist>
-            <p v-if="models.length > 0" class="text-xs text-wa-green mt-1">{{ models.length }} model tersedia — ketik untuk memfilter</p>
-            <p v-else-if="modelsError" class="text-xs text-amber-600 dark:text-amber-400 mt-1">{{ modelsError }}</p>
+            <input
+              v-model="local.model"
+              placeholder="gpt-4o-mini"
+              class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none font-mono text-xs"
+            />
           </div>
 
           <div v-if="needsKey">
@@ -181,44 +140,77 @@ async function loadModels() {
           </div>
         </div>
 
+        <!-- System Prompt -->
+        <div class="border-t border-wa-border dark:border-wa-border-dark pt-4">
+          <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide mb-2 block">System Prompt CS</label>
+          <p class="text-xs text-wa-muted dark:text-wa-muted-dark mb-2">
+            Petunjuk untuk AI bagaimana bersikap sebagai CS. Kosongkan untuk menggunakan default.
+          </p>
+          <textarea
+            v-model="local.systemPrompt"
+            rows="6"
+            placeholder="Kamu adalah customer service yang ramah dan profesional..."
+            class="w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none resize-y min-h-[120px] font-mono text-xs leading-relaxed"
+          ></textarea>
+        </div>
+
+        <!-- Greeting -->
+        <div class="border-t border-wa-border dark:border-wa-border-dark pt-4 space-y-3">
+          <h3 class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Pesan Sambutan</h3>
+
+          <label class="flex items-center justify-between p-3 bg-wa-panel dark:bg-wa-hover-dark rounded-lg cursor-pointer">
+            <span class="text-sm font-medium">Kirim sambutan ke kontak baru</span>
+            <input v-model="local.useGreeting" type="checkbox" class="w-4 h-4 accent-wa-green" />
+          </label>
+
+          <div v-if="local.useGreeting">
+            <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Teks sambutan (dikirim sekali)</label>
+            <textarea
+              v-model="local.greetingMsg"
+              rows="3"
+              placeholder="Halo! Selamat datang. Ada yang bisa saya bantu?"
+              class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none resize-none font-mono text-xs"
+            ></textarea>
+          </div>
+        </div>
+
         <div v-if="message" class="text-sm text-wa-green text-center">{{ message }}</div>
 
         <div
-          v-if="ai.connStatus === 'ok' || ai.connStatus === 'error'"
+          v-if="cs.connStatus === 'ok' || cs.connStatus === 'error'"
           class="text-sm flex items-center gap-2 rounded-lg px-3 py-2"
-          :class="ai.connStatus === 'ok'
+          :class="cs.connStatus === 'ok'
             ? 'bg-wa-green/10 text-wa-green'
             : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'"
         >
-          <CheckCircle2 v-if="ai.connStatus === 'ok'" :size="16" class="shrink-0" />
-          <XCircle v-else :size="16" class="shrink-0 mt-0.5" />
-          <span class="break-words min-w-0">{{ ai.connMessage }}</span>
+          <CheckCircle2 v-if="cs.connStatus === 'ok'" :size="16" class="shrink-0" />
+          <X v-else :size="16" class="shrink-0 mt-0.5" />
+          <span class="break-words min-w-0">{{ cs.connMessage }}</span>
         </div>
 
         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-          <p class="font-semibold">💡 Tips gratis untuk AI Chat:</p>
-          <p>• Ollama: <code>ollama pull llama3.2</code> lalu pilih preset Ollama</p>
-          <p>• LM Studio: download dari lmstudio.ai, load model, start server</p>
-          <p>• OpenRouter: punya banyak model gratis (DeepSeek, Llama, Gemini)</p>
-          <p>• Untuk Image Generation pakai tombol 🖼️ di sidebar — setting terpisah</p>
+          <p class="font-semibold">💡 Catatan:</p>
+          <p>• CS Bot pakai provider sendiri — tidak numpang sama AI personal (Playground)</p>
+          <p>• Auto-reply aktif untuk SEMUA kontak (global)</p>
+          <p>• Matikan CS Bot untuk menghentikan auto-reply</p>
+          <p>• Greeting hanya dikirim SEKALI per kontak</p>
         </div>
       </div>
 
       <footer class="border-t border-wa-border dark:border-wa-border-dark px-5 py-3 flex gap-2">
         <button
           @click="testNow"
-          :disabled="ai.testing"
+          :disabled="cs.testing"
           class="flex-1 border border-wa-border dark:border-wa-border-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <Loader2 v-if="ai.testing" :size="16" class="animate-spin" />
+          <Loader2 v-if="cs.testing" :size="16" class="animate-spin" />
           <CheckCircle2 v-else :size="16" />
           Cek Koneksi
         </button>
-        <button @click="save" :disabled="saving" class="flex-1 bg-wa-green hover:bg-wa-green-dark text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+        <button @click="save" :disabled="saving" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50">
           <Save :size="16" /> Simpan
         </button>
       </footer>
     </div>
   </div>
 </template>
-

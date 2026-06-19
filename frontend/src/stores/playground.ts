@@ -4,7 +4,7 @@ import { AIChat, AIChatCancel } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 export type Role = 'user' | 'assistant'
-export type PGTab = 'chat' | 'image' | 'market'
+export type PGTab = 'chat' | 'market'
 
 export interface PlaygroundMessage {
   id: string
@@ -76,13 +76,8 @@ export const usePlaygroundStore = defineStore('playground', () => {
   const streamSessionId = ref<string>('')
   // Text to preload into the composer (e.g. from "Tanya AI" in a chat).
   const pendingInput = ref<string>('')
-  // Active tab in the playground: chat or image generation.
+  // Active tab in the playground: chat or market.
   const pgTab = ref<PGTab>('chat')
-  // Image generation parameters — shared between PlaygroundImages and PlaygroundParams.
-  const imgModel = ref<string>('imagen-3-flash')
-  const imgStyle = ref<string>('illustration')
-  const imgRatio = ref<string>('square')
-  const imgSize = ref<string>('1024x1024')
 
   let bound = false
 
@@ -306,9 +301,5 @@ export const usePlaygroundStore = defineStore('playground', () => {
     cancel,
     regenerate,
     pgTab,
-    imgModel,
-    imgStyle,
-    imgRatio,
-    imgSize,
   }
 })

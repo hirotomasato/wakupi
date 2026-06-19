@@ -16,12 +16,15 @@ import GroupInfoPanel from './components/GroupInfoPanel.vue'
 import ProfileEditor from './components/ProfileEditor.vue'
 import StarredPanel from './components/StarredPanel.vue'
 import AISettingsModal from './components/AISettingsModal.vue'
+import CSBotSettingsModal from './components/CSBotSettingsModal.vue'
 import ChatContextMenu from './components/ChatContextMenu.vue'
 import PlaygroundView from './components/playground/PlaygroundView.vue'
+import ImageGenView from './components/ImageGenView.vue'
 import { useChatStore } from './stores/chat'
 import { useStatusStore } from './stores/status'
 import { useSettingsStore } from './stores/settings'
 import { useAIStore } from './stores/ai'
+import { useCSBotStore } from './stores/csbot'
 import { useUIStore } from './stores/ui'
 import { usePlaygroundStore } from './stores/playground'
 
@@ -29,6 +32,7 @@ const chat = useChatStore()
 const status = useStatusStore()
 const settings = useSettingsStore()
 const ai = useAIStore()
+const csbot = useCSBotStore()
 const ui = useUIStore()
 const pg = usePlaygroundStore()
 const showSettings = ref(false)
@@ -53,6 +57,8 @@ onMounted(async () => {
   await chat.refreshSessions()
   await ai.load()
   if (ai.config.enabled) ai.testConnection(ai.config).catch(() => {})
+  await csbot.load()
+  if (csbot.config.enabled) csbot.testConnection(csbot.config).catch(() => {})
 
   if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {})
@@ -82,7 +88,8 @@ watch(
   <div class="h-full w-full flex bg-wa-bg dark:bg-wa-bg-dark">
     <AccountRail @open-settings="showSettings = true" />
 
-    <PlaygroundView v-if="ui.showPlayground" />
+    <ImageGenView v-if="ui.showImageGen" />
+    <PlaygroundView v-else-if="ui.showPlayground" />
     <template v-else-if="chat.activeAccountId">
       <StatusPanel v-if="status.showStatusPanel" />
       <ChatList v-else-if="!ui.waListCollapsed" />
@@ -112,6 +119,7 @@ watch(
     <ProfileEditor />
     <StarredPanel />
     <AISettingsModal />
+    <CSBotSettingsModal />
     <ChatContextMenu />
   </div>
 </template>

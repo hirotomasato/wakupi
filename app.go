@@ -11,8 +11,12 @@ import (
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 
 	"wakupi/internal/ai"
+	"wakupi/internal/cs"
 	"wakupi/internal/desktop"
 	"wakupi/internal/market"
 	"wakupi/internal/wa"
@@ -22,6 +26,8 @@ type App struct {
 	ctx context.Context
 	wa  *wa.Manager
 	ai  *ai.Service
+	cs  *cs.Bot
+	imageGen *ai.Service
 	dc  desktop.Controller
 
 	aiStreamMu     sync.Mutex
@@ -45,7 +51,24 @@ func (a *App) startup(ctx context.Context) {
 	a.wa = mgr
 
 	a.ai = ai.New(a.loadAIConfig())
+	a.imageGen = ai.New(a.loadImageGenConfig())
+	a.cs = cs.New(a.loadCSBotConfig())
 	a.dc = desktop.New()
+
+	// Wire CS Bot hook into the WhatsApp manager so every incoming
+	// text message is forwarded to the bot for auto-reply.
+	a.wa.SetCSBotHook(func(s *wa.Session, text string, chatJID types.JID, pushName string) {
+		a.cs.HandleMessage(a.ctx, cs.MessageContext{
+			ChatJID:  chatJID,
+			Text:     text,
+			PushName: pushName,
+		}, func(ctx context.Context, jid types.JID, reply string) error {
+			_, err := s.Client.SendMessage(ctx, jid, &waE2E.Message{
+				Conversation: proto.String(reply),
+			})
+			return err
+		})
+	})
 
 	if err := mgr.LoadExisting(ctx); err != nil {
 		runtime.LogErrorf(ctx, "load existing sessions: %v", err)
@@ -290,34 +313,127 @@ func (a *App) AICompose(prompt, tone string) (string, error) {
 	return a.ai.Chat(a.ctx, sys, prompt)
 }
 
-// === AI Image Generation ===
+// === AI Image Generation (standalone config) ===
+
+func (a *App) loadImageGenConfig() ai.Config {
+	if a.wa == nil {
+		return ai.Config{}
+	}
+	raw, _ := a.wa.GetAppSetting(a.ctx, "imagegen_config")
+	var cfg ai.Config
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cfg)
+	}
+	return cfg
+}
+
+func (a *App) resolveImageGenKey(cfg ai.Config) ai.Config {
+	if cfg.APIKey == "" || strings.HasPrefix(cfg.APIKey, "*") {
+		cfg.APIKey = a.loadImageGenConfig().APIKey
+	}
+	return cfg
+}
+
+func (a *App) GetImageGenConfig() ai.Config {
+	if a.imageGen == nil {
+		return ai.Config{}
+	}
+	return a.imageGen.Config()
+}
+
+func (a *App) SetImageGenConfig(cfg ai.Config) error {
+	if a.wa == nil || a.imageGen == nil {
+		return fmt.Errorf("not ready")
+	}
+	cfg = a.resolveImageGenKey(cfg)
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	a.imageGen.Update(cfg)
+	return a.wa.SetAppSetting(a.ctx, "imagegen_config", string(data))
+}
+
+func (a *App) ImageGenTestConnection(cfg ai.Config) error {
+	cfg = a.resolveImageGenKey(cfg)
+	return ai.New(cfg).Ping(a.ctx)
+}
 
 func (a *App) AIGenerateImage(prompt string, opts ai.ImageOptions) ([]ai.ImageResult, error) {
-	if a.ai == nil || !a.ai.Enabled() {
-		return nil, fmt.Errorf("AI tidak aktif")
+	if a.imageGen == nil || !a.imageGen.Enabled() {
+		return nil, fmt.Errorf("Image Gen tidak aktif — atur provider di pengaturan Image Generator")
 	}
-	return a.ai.GenerateImage(a.ctx, prompt, opts)
+	return a.imageGen.GenerateImage(a.ctx, prompt, opts)
 }
 
 func (a *App) AIGetGamAPIModels() ([]string, error) {
-	if a.ai == nil {
-		return nil, fmt.Errorf("AI not ready")
+	if a.imageGen == nil {
+		return nil, fmt.Errorf("Image Gen not ready")
 	}
-	return a.ai.ListGamAPIModels(a.ctx)
+	return a.imageGen.ListGamAPIModels(a.ctx)
 }
 
 func (a *App) AIGetGamAPIStyles() (map[string]string, error) {
-	if a.ai == nil {
-		return nil, fmt.Errorf("AI not ready")
+	if a.imageGen == nil {
+		return nil, fmt.Errorf("Image Gen not ready")
 	}
-	return a.ai.ListGamAPIStyles(a.ctx)
+	return a.imageGen.ListGamAPIStyles(a.ctx)
 }
 
 func (a *App) AIGetGamAPIRatios() (map[string]string, error) {
-	if a.ai == nil {
-		return nil, fmt.Errorf("AI not ready")
+	if a.imageGen == nil {
+		return nil, fmt.Errorf("Image Gen not ready")
 	}
-	return a.ai.ListGamAPIAspectRatios(a.ctx)
+	return a.imageGen.ListGamAPIAspectRatios(a.ctx)
+}
+
+// === CS Bot ===
+
+func (a *App) loadCSBotConfig() cs.CSConfig {
+	if a.wa == nil {
+		return cs.CSConfig{}
+	}
+	raw, _ := a.wa.GetAppSetting(a.ctx, "csbot_config")
+	var cfg cs.CSConfig
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cfg)
+	}
+	if cfg.SystemPrompt == "" {
+		cfg.SystemPrompt = cs.DefaultSystemPrompt
+	}
+	return cfg
+}
+
+func (a *App) resolveCSBotKey(cfg cs.CSConfig) cs.CSConfig {
+	if cfg.APIKey == "" || strings.HasPrefix(cfg.APIKey, "*") {
+		cfg.APIKey = a.loadCSBotConfig().APIKey
+	}
+	return cfg
+}
+
+func (a *App) GetCSBotConfig() cs.CSConfig {
+	if a.cs == nil {
+		return cs.CSConfig{}
+	}
+	return a.cs.Config()
+}
+
+func (a *App) SetCSBotConfig(cfg cs.CSConfig) error {
+	if a.wa == nil || a.cs == nil {
+		return fmt.Errorf("not ready")
+	}
+	cfg = a.resolveCSBotKey(cfg)
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	a.cs.Update(cfg)
+	return a.wa.SetAppSetting(a.ctx, "csbot_config", string(data))
+}
+
+func (a *App) CSBotTestConnection(cfg cs.CSConfig) error {
+	cfg = a.resolveCSBotKey(cfg)
+	return cs.New(cfg).Ping(a.ctx)
 }
 
 // === Market Data ===

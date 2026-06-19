@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { PanelRightClose, RefreshCw, Settings2, Image as ImageIcon } from '@lucide/vue'
-import { usePlaygroundStore, type PGTab } from '../../stores/playground'
+import { PanelRightClose, RefreshCw, Settings2 } from '@lucide/vue'
+import { usePlaygroundStore } from '../../stores/playground'
 import { useUIStore } from '../../stores/ui'
 import { useAIStore } from '../../stores/ai'
 
@@ -11,20 +11,9 @@ const ai = useAIStore()
 
 const models = ref<string[]>([])
 const loadingModels = ref(false)
-const gamapiModels = ref<string[]>([])
-const gamapiStyles = ref<Record<string, string>>({})
-const gamapiRatios = ref<Record<string, string>>({})
 
 const session = computed(() => pg.activeSession)
 const inheritedModel = computed(() => ai.config.model || '(default provider)')
-const isImageTab = computed(() => pg.pgTab === 'image')
-const isGamAPI = computed(() => ai.config.provider === 'gamapi')
-
-const dallESizes = [
-  { id: '1024x1024', label: 'Square (1024×1024)' },
-  { id: '1792x1024', label: 'Landscape (1792×1024)' },
-  { id: '1024x1792', label: 'Portrait (1024×1792)' },
-]
 
 async function loadModels() {
   loadingModels.value = true
@@ -37,36 +26,13 @@ async function loadModels() {
   }
 }
 
-async function loadGamAPIData() {
-  const [m, s, r] = await Promise.all([
-    ai.getGamAPIModels().catch(() => [] as string[]),
-    ai.getGamAPIStyles().catch(() => ({} as Record<string, string>)),
-    ai.getGamAPIRatios().catch(() => ({} as Record<string, string>)),
-  ])
-  gamapiModels.value = m
-  gamapiStyles.value = s
-  gamapiRatios.value = r
-}
-
 // Pull model list when panel opens.
 watch(
   () => ui.pgRightCollapsed,
   (collapsed) => {
     if (!collapsed && models.value.length === 0 && ai.config.enabled) loadModels()
-    if (!collapsed && isGamAPI.value && gamapiModels.value.length === 0) loadGamAPIData()
   },
   { immediate: true }
-)
-
-// Reload when switching tab.
-watch(
-  () => pg.pgTab,
-  (tab) => {
-    if (!ui.pgRightCollapsed) {
-      if (tab === 'chat' && models.value.length === 0 && ai.config.enabled) loadModels()
-      if (tab === 'image' && isGamAPI.value && gamapiModels.value.length === 0) loadGamAPIData()
-    }
-  }
 )
 </script>
 
@@ -74,9 +40,8 @@ watch(
   <div class="h-full flex flex-col bg-wa-panel dark:bg-[#111b21] border-l border-wa-border dark:border-wa-border-dark">
     <header class="flex items-center justify-between px-4 py-3 border-b border-wa-border dark:border-wa-border-dark">
       <span class="text-sm font-semibold flex items-center gap-2 text-wa-text dark:text-wa-text-dark">
-        <ImageIcon v-if="isImageTab" :size="16" class="text-fuchsia-500" />
-        <Settings2 v-else :size="16" class="text-violet-500" />
-        {{ isImageTab ? 'Image Params' : 'Parameter' }}
+        <Settings2 :size="16" class="text-violet-500" />
+        Parameter
       </span>
       <button
         @click="ui.pgRightCollapsed = true"
@@ -88,7 +53,7 @@ watch(
     </header>
 
     <!-- CHAT PARAMETERS -->
-    <div v-if="!isImageTab && session" class="flex-1 overflow-y-auto p-4 space-y-5">
+    <div v-if="session" class="flex-1 overflow-y-auto p-4 space-y-5">
       <div v-if="!ai.config.enabled" class="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg p-3">
         AI belum aktif. Buka pengaturan AI (ikon ✨) untuk mengatur provider dan API key.
       </div>
@@ -144,70 +109,6 @@ watch(
           class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark resize-none leading-relaxed"
         />
       </div>
-    </div>
-
-    <!-- IMAGE PARAMETERS -->
-    <div v-else-if="isImageTab" class="flex-1 overflow-y-auto p-4 space-y-5">
-      <div v-if="!ai.config.enabled" class="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg p-3">
-        AI belum aktif. Buka pengaturan AI (ikon ✨) untuk mengatur provider dan API key.
-      </div>
-
-      <!-- Provider info -->
-      <div class="p-3 rounded-lg bg-wa-panel dark:bg-wa-hover-dark border border-wa-border dark:border-wa-border-dark">
-        <p class="text-xs font-medium text-wa-text dark:text-wa-text-dark">Provider</p>
-        <p class="text-sm font-semibold text-wa-text dark:text-wa-text-dark mt-0.5">
-          {{ ai.config.provider.toUpperCase() }}
-          <span v-if="isGamAPI" class="ml-1 text-wa-green text-xs"> • Unlimited</span>
-        </p>
-      </div>
-
-      <!-- GamAPI: Model selector -->
-      <div v-if="isGamAPI && gamapiModels.length">
-        <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Model</label>
-        <select
-          v-model="pg.imgModel"
-          class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark font-mono"
-        >
-          <option v-for="m in gamapiModels" :key="m" :value="m">{{ m }}</option>
-        </select>
-      </div>
-
-      <!-- GamAPI: Style selector -->
-      <div v-if="isGamAPI && Object.keys(gamapiStyles).length">
-        <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Style</label>
-        <select
-          v-model="pg.imgStyle"
-          class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark"
-        >
-          <option v-for="[k, v] in Object.entries(gamapiStyles)" :key="k" :value="k">{{ v }}</option>
-        </select>
-      </div>
-
-      <!-- GamAPI: Aspect Ratio selector -->
-      <div v-if="isGamAPI && Object.keys(gamapiRatios).length">
-        <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Aspect Ratio</label>
-        <select
-          v-model="pg.imgRatio"
-          class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark"
-        >
-          <option v-for="[k, v] in Object.entries(gamapiRatios)" :key="k" :value="k">{{ v }}</option>
-        </select>
-      </div>
-
-      <!-- OpenAI DALL-E: Size selector -->
-      <div v-if="ai.config.provider === 'openai'">
-        <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Size</label>
-        <select
-          v-model="pg.imgSize"
-          class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark"
-        >
-          <option v-for="s in dallESizes" :key="s.id" :value="s.id">{{ s.label }}</option>
-        </select>
-      </div>
-
-      <p class="text-xs text-wa-muted dark:text-wa-muted-dark pt-2">
-        Ketik prompt di panel kiri lalu klik ✦ untuk generate.
-      </p>
     </div>
 
     <!-- No session -->

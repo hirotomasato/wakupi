@@ -125,7 +125,6 @@ func (m *Manager) seedChatsFromContacts(s *Session) {
 			avatarPath, _ := m.store.GetAvatarPath(context.Background(), s.ID, jid.String())
 			ci.AvatarURL = avatarToURL(avatarPath)
 			ci.ID = ci.JID
-			m.emit("wa:chat", *ci)
 			go m.ensureAvatar(s, jid, false)
 		}
 	}
@@ -145,7 +144,6 @@ func (m *Manager) seedChatsFromContacts(s *Session) {
 			avatarPath, _ := m.store.GetAvatarPath(context.Background(), s.ID, g.JID.String())
 			ci.AvatarURL = avatarToURL(avatarPath)
 			ci.ID = ci.JID
-			m.emit("wa:chat", *ci)
 			go m.ensureAvatar(s, g.JID, true)
 		}
 	}

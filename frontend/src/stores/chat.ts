@@ -190,21 +190,34 @@ export const useChatStore = defineStore('chat', () => {
   const replyTo = ref<Message | null>(null)
   const previewMessage = ref<Message | null>(null)
 
-  const visibleChats = computed(() =>
-    chats.value
+  const visibleChats = computed(() => {
+    const seen = new Set<string>()
+    return chats.value
       .filter((c) => c.accountId === activeAccountId.value && !c.archived && !c.blocked)
+      .filter((c) => {
+        // Safety dedup — only first occurrence per id survives.
+        if (seen.has(c.id)) return false
+        seen.add(c.id)
+        return true
+      })
       .sort((a, b) => {
         const pinDiff = Number(!!b.pinned) - Number(!!a.pinned)
         if (pinDiff !== 0) return pinDiff
         return (b._sortKey || 0) - (a._sortKey || 0)
       })
-  )
+  })
 
-  const archivedChats = computed(() =>
-    chats.value
+  const archivedChats = computed(() => {
+    const seen = new Set<string>()
+    return chats.value
       .filter((c) => c.accountId === activeAccountId.value && c.archived)
+      .filter((c) => {
+        if (seen.has(c.id)) return false
+        seen.add(c.id)
+        return true
+      })
       .sort((a, b) => (b._sortKey || 0) - (a._sortKey || 0))
-  )
+  })
 
   const activeChat = computed(() => chats.value.find((c) => c.id === activeChatId.value) || null)
   const activeMessages = computed(() => (activeChatId.value ? messages.value[activeChatId.value] || [] : []))
@@ -241,37 +254,31 @@ export const useChatStore = defineStore('chat', () => {
 
   function upsertChat(c: BackendChat) {
     const id = `${c.accountId}::${c.jid}`
-    const idx = chats.value.findIndex((x) => x.id === id)
-    const base: Chat = {
+    // Atomic dedup: rebuild the entire array from a fresh Map so it is
+    // mathematically impossible for two entries with the same id to coexist.
+    const all = new Map<string, Chat>()
+    for (const ch of chats.value) {
+      all.set(ch.id, ch)
+    }
+    const prev = all.get(id)
+
+    all.set(id, {
       id,
       accountId: c.accountId,
       jid: c.jid,
-      name: c.name || c.jid.split('@')[0],
-      avatarUrl: c.avatarUrl,
-      lastMessage: c.lastMessage,
-      lastTime: formatTime(c.lastTime),
-      _sortKey: c.lastTime,
-      unread: idx >= 0 ? chats.value[idx].unread : 0,
+      name: c.name || prev?.name || c.jid.split('@')[0],
+      avatarUrl: c.avatarUrl || prev?.avatarUrl || '',
+      lastMessage: c.lastTime ? c.lastMessage : (prev?._sortKey ? prev.lastMessage : c.lastMessage || ''),
+      lastTime: c.lastTime ? formatTime(c.lastTime) : (prev?._sortKey ? prev.lastTime : formatTime(c.lastTime || 0)),
+      _sortKey: c.lastTime || prev?._sortKey || 0,
+      unread: prev?.unread ?? 0,
       isGroup: c.isGroup,
-      pinned: c.pinned ?? (idx >= 0 ? chats.value[idx].pinned : false),
-      archived: c.archived ?? (idx >= 0 ? chats.value[idx].archived : false),
-      mutedUntil: c.mutedUntil ?? (idx >= 0 ? chats.value[idx].mutedUntil : 0),
-      blocked: c.blocked ?? (idx >= 0 ? chats.value[idx].blocked : false),
-    }
-    if (idx >= 0) {
-      const existing = chats.value[idx]
-      const merged: Chat = { ...existing, ...base, unread: existing.unread }
-      if (!c.name && existing.name) merged.name = existing.name
-      if (!c.avatarUrl && existing.avatarUrl) merged.avatarUrl = existing.avatarUrl
-      if (!c.lastTime && existing._sortKey) {
-        merged.lastMessage = existing.lastMessage
-        merged.lastTime = existing.lastTime
-        merged._sortKey = existing._sortKey
-      }
-      chats.value[idx] = merged
-    } else {
-      chats.value.push(base)
-    }
+      pinned: c.pinned ?? prev?.pinned ?? false,
+      archived: c.archived ?? prev?.archived ?? false,
+      mutedUntil: c.mutedUntil ?? prev?.mutedUntil ?? 0,
+      blocked: c.blocked ?? prev?.blocked ?? false,
+    })
+    chats.value = [...all.values()]
   }
 
   function appendMessage(m: BackendMessage) {
@@ -510,13 +517,59 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadChatsForAccount(accountId: string) {
+    // Prevent re-entrant calls.
     if (_loadingChats.has(accountId)) return
     _loadingChats.add(accountId)
     try {
       const list = (await LoadChats(accountId)) as unknown as BackendChat[]
+
+      // Build a fresh Map from DB results so we atomically replace the entire
+      // chat list. This avoids race conditions where a wa:chat event arriving
+      // mid-loop gets interleaved with individual upsertChat calls.
+      const fresh = new Map<string, Chat>()
       for (const c of list || []) {
-        upsertChat({ ...c, accountId, jid: c.jid })
+        const id = `${accountId}::${c.jid}`
+        fresh.set(id, {
+          id,
+          accountId,
+          jid: c.jid,
+          name: c.name || c.jid.split('@')[0],
+          avatarUrl: c.avatarUrl,
+          lastMessage: c.lastMessage,
+          lastTime: formatTime(c.lastTime),
+          _sortKey: c.lastTime,
+          unread: 0,
+          isGroup: c.isGroup,
+          pinned: c.pinned ?? false,
+          archived: c.archived ?? false,
+          mutedUntil: c.mutedUntil ?? 0,
+          blocked: c.blocked ?? false,
+        })
       }
+
+      // Merge in any existing chats that are not in the DB result but have
+      // local state worth preserving (unread, pinned, archived, etc.).
+      for (const existing of chats.value) {
+        if (existing.accountId !== accountId) continue
+        if (!fresh.has(existing.id)) {
+          fresh.set(existing.id, existing)
+        } else {
+          // Preserve local-only state from the old entry.
+          const entry = fresh.get(existing.id)!
+          entry.unread = existing.unread
+          entry.pinned = existing.pinned
+          entry.archived = existing.archived
+          entry.mutedUntil = existing.mutedUntil
+          entry.blocked = existing.blocked
+        }
+      }
+
+      // Atomic replacement — single write to the reactive array.
+      const accountChats: Chat[] = []
+      for (const [, chat] of fresh) accountChats.push(chat)
+      // Keep chats from other accounts, append new ones.
+      const otherChats = chats.value.filter((c) => c.accountId !== accountId)
+      chats.value = [...otherChats, ...accountChats]
 
       // Always try to restore the persisted chat for this account first —
       // selectChat will auto-load history via loadHistoryForChat if needed.
@@ -970,13 +1023,17 @@ export const useChatStore = defineStore('chat', () => {
     })
     EventsOn('wa:sync_complete', async (data: { sessionId: string }) => {
       console.log('history sync done', data?.sessionId)
-      // Only load chats if this is a brand-new account with no chats yet.
-      // If chats are already loaded (from refreshSessions), skip to avoid
-      // double-loading messages and duplicating chat list entries.
       if (data?.sessionId) {
-        const hasExisting = chats.value.some((c) => c.accountId === data.sessionId)
-        if (!hasExisting) {
-          await loadChatsForAccount(data.sessionId)
+        // Always reload chats from DB after history sync completes.
+        // seedChatsFromContacts populates stub chats but handleHistorySync
+        // writes real lastMessage/lastTime to the DB. We need to replace
+        // the stubs with the real data.
+        await loadChatsForAccount(data.sessionId)
+
+        // Also reload messages for the active chat so history sync
+        // messages appear immediately instead of on first click.
+        if (activeChat.value && activeChat.value.accountId === data.sessionId) {
+          await loadHistoryForChat(data.sessionId, activeChat.value.jid)
         }
       }
     })

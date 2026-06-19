@@ -65,6 +65,37 @@ export namespace ai {
 
 }
 
+export namespace cs {
+	
+	export class CSConfig {
+	    provider: string;
+	    apiKey: string;
+	    baseUrl: string;
+	    model: string;
+	    enabled: boolean;
+	    systemPrompt: string;
+	    greetingMsg: string;
+	    useGreeting: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CSConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.apiKey = source["apiKey"];
+	        this.baseUrl = source["baseUrl"];
+	        this.model = source["model"];
+	        this.enabled = source["enabled"];
+	        this.systemPrompt = source["systemPrompt"];
+	        this.greetingMsg = source["greetingMsg"];
+	        this.useGreeting = source["useGreeting"];
+	    }
+	}
+
+}
+
 export namespace desktop {
 	
 	export class AppInfo {

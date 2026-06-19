@@ -77,6 +77,11 @@ func (m *Manager) handleMessage(s *Session, e *events.Message) {
 		return
 	}
 
+	// CS Bot auto-reply hook — runs async, does not block the pipeline.
+	if m.csHook != nil && !e.Info.IsFromMe && !isStatus && mi.Text != "" {
+		go m.csHook(s, mi.Text, chatJID, displayName)
+	}
+
 	if mi.Text == "" && mi.MediaType == "" {
 		return
 	}

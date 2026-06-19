@@ -54,6 +54,10 @@ export function BlockChat(arg1, arg2, arg3) {
   return window['go']['main']['App']['BlockChat'](arg1, arg2, arg3);
 }
 
+export function CSBotTestConnection(arg1) {
+  return window['go']['main']['App']['CSBotTestConnection'](arg1);
+}
+
 export function DeleteMessage(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DeleteMessage'](arg1, arg2, arg3, arg4);
 }
@@ -114,8 +118,20 @@ export function GetAIConfig() {
   return window['go']['main']['App']['GetAIConfig']();
 }
 
+export function GetCSBotConfig() {
+  return window['go']['main']['App']['GetCSBotConfig']();
+}
+
 export function GetGroupInfo(arg1, arg2) {
   return window['go']['main']['App']['GetGroupInfo'](arg1, arg2);
+}
+
+export function GetImageGenConfig() {
+  return window['go']['main']['App']['GetImageGenConfig']();
+}
+
+export function ImageGenTestConnection(arg1) {
+  return window['go']['main']['App']['ImageGenTestConnection'](arg1);
 }
 
 export function IsOnWhatsApp(arg1, arg2) {
@@ -242,8 +258,16 @@ export function SetAIConfig(arg1) {
   return window['go']['main']['App']['SetAIConfig'](arg1);
 }
 
+export function SetCSBotConfig(arg1) {
+  return window['go']['main']['App']['SetCSBotConfig'](arg1);
+}
+
 export function SetGroupName(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetGroupName'](arg1, arg2, arg3);
+}
+
+export function SetImageGenConfig(arg1) {
+  return window['go']['main']['App']['SetImageGenConfig'](arg1);
 }
 
 export function SetSelfProfilePicture(arg1, arg2) {
