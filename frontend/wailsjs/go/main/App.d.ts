@@ -35,6 +35,8 @@ export function BlockChat(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function CSBotTestConnection(arg1:cs.CSConfig):Promise<void>;
 
+export function CopyToClipboard(arg1:string):Promise<void>;
+
 export function DeleteMessage(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;

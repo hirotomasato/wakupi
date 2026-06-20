@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -718,4 +719,25 @@ func (a *App) SaveTempBlob(b64 string, ext string) (string, error) {
 		return "", err
 	}
 	return f.Name(), nil
+}
+
+// CopyToClipboard writes text to the system clipboard, bypassing webview
+// restrictions that block navigator.clipboard in webkit2gtk.
+func (a *App) CopyToClipboard(text string) error {
+	if _, err := exec.LookPath("wl-copy"); err == nil {
+		cmd := exec.Command("wl-copy", "--foreground", "--type", "text/plain")
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	if _, err := exec.LookPath("xclip"); err == nil {
+		cmd := exec.Command("xclip", "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	if _, err := exec.LookPath("xsel"); err == nil {
+		cmd := exec.Command("xsel", "--clipboard", "--input")
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	return fmt.Errorf("tidak ada clipboard tool (install xclip/xsel/wl-clipboard)")
 }

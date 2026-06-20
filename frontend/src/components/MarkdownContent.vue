@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { renderMarkdown, b64Decode } from '../lib/markdown'
+import { CopyToClipboard } from '../../wailsjs/go/main/App'
 
 const props = defineProps<{ text: string }>()
 const root = ref<HTMLElement | null>(null)
@@ -12,7 +13,7 @@ function onClick(e: MouseEvent) {
   const target = (e.target as HTMLElement).closest('.code-block__copy') as HTMLElement | null
   if (!target) return
   const code = b64Decode(target.getAttribute('data-code') || '')
-  navigator.clipboard?.writeText(code).then(() => {
+  CopyToClipboard(code).then(() => {
     const original = target.textContent
     target.textContent = 'Copied!'
     target.classList.add('is-copied')

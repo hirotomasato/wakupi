@@ -58,6 +58,10 @@ export function CSBotTestConnection(arg1) {
   return window['go']['main']['App']['CSBotTestConnection'](arg1);
 }
 
+export function CopyToClipboard(arg1) {
+  return window['go']['main']['App']['CopyToClipboard'](arg1);
+}
+
 export function DeleteMessage(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DeleteMessage'](arg1, arg2, arg3, arg4);
 }

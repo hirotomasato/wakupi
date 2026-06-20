@@ -10,6 +10,7 @@ import { useAIStore } from '../../stores/ai'
 import { useChatStore } from '../../stores/chat'
 import { useSettingsStore } from '../../stores/settings'
 import MarkdownContent from '../MarkdownContent.vue'
+import { CopyToClipboard } from '../../../wailsjs/go/main/App'
 
 const pg = usePlaygroundStore()
 const ui = useUIStore()
@@ -109,7 +110,10 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function copyMessage(content: string) {
-  navigator.clipboard?.writeText(content)
+  CopyToClipboard(content).catch(() => {
+    // Fallback ke JS API kalau binding gagal
+    navigator.clipboard?.writeText(content)
+  })
 }
 
 const hasAccounts = computed(() => chat.accounts.length > 0)
