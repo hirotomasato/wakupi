@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import {
-  Search,
   MoreVertical,
   Smile,
   Paperclip,
@@ -14,10 +13,10 @@ import {
   FileText,
   Music,
   Sparkles,
-  Star,
   Info,
   PanelLeftOpen,
   TrendingUp,
+  Megaphone,
 } from '@lucide/vue'
 import { useChatStore } from '../stores/chat'
 import { useUIStore } from '../stores/ui'
@@ -271,6 +270,7 @@ function openInfo() {
           <div class="w-10 h-10 rounded-full bg-slate-400 text-white flex items-center justify-center font-semibold overflow-hidden">
             <img v-if="chat.avatarUrl" :src="chat.avatarUrl" class="w-full h-full object-cover" />
             <Users v-else-if="chat.isGroup" :size="18" />
+            <Megaphone v-else-if="chat.isChannel" :size="18" />
             <span v-else>{{ initials(chat.name) }}</span>
           </div>
           <div>
@@ -284,9 +284,6 @@ function openInfo() {
           </div>
         </div>
         <div class="flex items-center gap-1 text-wa-muted dark:text-wa-muted-dark" @click.stop>
-          <button @click="ui.showSearch = true" class="w-9 h-9 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center" title="Cari">
-            <Search :size="18" />
-          </button>
           <div class="relative">
             <button @click="showHeaderMenu = !showHeaderMenu" class="w-9 h-9 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center">
               <MoreVertical :size="18" />
@@ -306,9 +303,6 @@ function openInfo() {
                   <Sparkles :size="14" class="text-violet-500" /> Draf balasan (AI)
                 </button>
               </template>
-              <button @click="ui.showStarred = true; showHeaderMenu = false" class="w-full text-left px-4 py-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm flex items-center gap-2">
-                <Star :size="14" class="text-amber-500" /> Pesan berbintang
-              </button>
             </div>
           </div>
         </div>
@@ -358,7 +352,12 @@ function openInfo() {
         </button>
       </div>
 
-      <footer class="bg-wa-panel dark:bg-wa-panel-dark px-3 py-2 flex items-center gap-2 relative">
+      <footer v-if="chat.isChannel && chat.role !== 'admin' && chat.role !== 'owner'" class="bg-wa-panel dark:bg-wa-panel-dark px-4 py-3 flex items-center justify-center gap-2">
+        <Megaphone :size="16" class="text-wa-muted" />
+        <span class="text-sm text-wa-muted dark:text-wa-muted-dark">Saluran — hanya baca</span>
+      </footer>
+
+      <footer v-else class="bg-wa-panel dark:bg-wa-panel-dark px-3 py-2 flex items-center gap-2 relative">
         <VoiceRecorder v-if="recording" @done="recording = false" />
 
         <template v-else>

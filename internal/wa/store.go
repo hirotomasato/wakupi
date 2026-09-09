@@ -39,6 +39,7 @@ func (s *Store) migrate() error {
 			timestamp   INTEGER NOT NULL,
 			from_me     INTEGER NOT NULL,
 			is_group    INTEGER NOT NULL,
+			is_channel  INTEGER NOT NULL DEFAULT 0,
 			push_name   TEXT,
 			media_type  TEXT,
 			media_url   TEXT,
@@ -65,6 +66,8 @@ func (s *Store) migrate() error {
 			jid          TEXT NOT NULL,
 			name         TEXT,
 			is_group     INTEGER NOT NULL,
+			is_channel   INTEGER NOT NULL DEFAULT 0,
+			channel_role TEXT DEFAULT '',
 			last_message TEXT,
 			last_time    INTEGER,
 			avatar_path  TEXT,
@@ -102,7 +105,10 @@ func (s *Store) migrate() error {
 		{"chats", "archived", "INTEGER DEFAULT 0"},
 		{"chats", "muted_until", "INTEGER DEFAULT 0"},
 		{"chats", "blocked", "INTEGER DEFAULT 0"},
+		{"chats", "is_channel", "INTEGER NOT NULL DEFAULT 0"},
+		{"chats", "channel_role", "TEXT DEFAULT ''"},
 		{"messages", "starred", "INTEGER DEFAULT 0"},
+		{"messages", "is_channel", "INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, a := range alters {
 		if err := s.addColumnIfNotExists(a.table, a.column, a.def); err != nil {
@@ -143,17 +149,17 @@ func (s *Store) addColumnIfNotExists(table, column, def string) error {
 func (s *Store) UpsertMessage(ctx context.Context, m *MessageInfo) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO messages (
-			id, account_id, chat_jid, sender, text, timestamp, from_me, is_group, push_name,
+			id, account_id, chat_jid, sender, text, timestamp, from_me, is_group, is_channel, push_name,
 			media_type, media_url, mime_type, file_name, file_size, width, height, duration,
 			is_ptt, caption, quoted_id, quoted_text, quoted_from
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(account_id, chat_jid, id) DO UPDATE SET
 			text=excluded.text,
 			media_url=COALESCE(NULLIF(excluded.media_url,''), media_url),
 			caption=excluded.caption,
 			deleted=0
 	`,
-		m.ID, m.AccountID, m.JID, m.Sender, m.Text, m.Timestamp, boolToInt(m.FromMe), boolToInt(m.IsGroup), m.PushName,
+		m.ID, m.AccountID, m.JID, m.Sender, m.Text, m.Timestamp, boolToInt(m.FromMe), boolToInt(m.IsGroup), boolToInt(m.IsChannel), m.PushName,
 		m.MediaType, m.MediaURL, m.MimeType, m.FileName, m.FileSize, m.Width, m.Height, m.Duration,
 		boolToInt(m.IsPTT), m.Caption, m.QuotedID, m.QuotedText, m.QuotedFrom,
 	)
@@ -176,14 +182,16 @@ func (s *Store) MarkDeleted(ctx context.Context, accountID, chatJID, msgID strin
 
 func (s *Store) UpsertChat(ctx context.Context, c *ChatInfo) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO chats (account_id, jid, name, is_group, last_message, last_time)
-		VALUES (?,?,?,?,?,?)
+		INSERT INTO chats (account_id, jid, name, is_group, is_channel, channel_role, last_message, last_time)
+		VALUES (?,?,?,?,?,?,?,?)
 		ON CONFLICT(account_id, jid) DO UPDATE SET
 			name=CASE WHEN excluded.name='' THEN chats.name ELSE excluded.name END,
 			is_group=excluded.is_group,
+			is_channel=excluded.is_channel,
+			channel_role=CASE WHEN excluded.channel_role='' THEN chats.channel_role ELSE excluded.channel_role END,
 			last_message=CASE WHEN excluded.last_time >= COALESCE(chats.last_time,0) THEN excluded.last_message ELSE chats.last_message END,
 			last_time=CASE WHEN excluded.last_time >= COALESCE(chats.last_time,0) THEN excluded.last_time ELSE chats.last_time END
-	`, c.AccountID, c.JID, c.Name, boolToInt(c.IsGroup), c.LastMessage, c.LastTime)
+	`, c.AccountID, c.JID, c.Name, boolToInt(c.IsGroup), boolToInt(c.IsChannel), c.ChannelRole, c.LastMessage, c.LastTime)
 	return err
 }
 
@@ -206,9 +214,24 @@ func (s *Store) GetAvatarPath(ctx context.Context, accountID, jid string) (strin
 	return path.String, nil
 }
 
+// GetChatName returns the stored chat display name, or "" when unknown.
+func (s *Store) GetChatName(ctx context.Context, accountID, jid string) (string, error) {
+	var name sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		`SELECT name FROM chats WHERE account_id=? AND jid=?`,
+		accountID, jid).Scan(&name)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return name.String, nil
+}
+
 func (s *Store) ListChats(ctx context.Context, accountID string) ([]ChatInfo, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT jid, COALESCE(name,''), is_group, COALESCE(last_message,''), COALESCE(last_time,0), COALESCE(avatar_path,''),
+		SELECT jid, COALESCE(name,''), is_group, is_channel, COALESCE(channel_role,''), COALESCE(last_message,''), COALESCE(last_time,0), COALESCE(avatar_path,''),
 			COALESCE(pinned,0), COALESCE(archived,0), COALESCE(muted_until,0), COALESCE(blocked,0)
 		FROM chats WHERE account_id=? ORDER BY last_time DESC
 	`, accountID)
@@ -219,15 +242,16 @@ func (s *Store) ListChats(ctx context.Context, accountID string) ([]ChatInfo, er
 	var out []ChatInfo
 	for rows.Next() {
 		var c ChatInfo
-		var isGroup, pinned, archived, blocked int
+		var isGroup, isChannel, pinned, archived, blocked int
 		var avatarPath string
 		var mutedUntil int64
-		if err := rows.Scan(&c.JID, &c.Name, &isGroup, &c.LastMessage, &c.LastTime, &avatarPath, &pinned, &archived, &mutedUntil, &blocked); err != nil {
+		if err := rows.Scan(&c.JID, &c.Name, &isGroup, &isChannel, &c.ChannelRole, &c.LastMessage, &c.LastTime, &avatarPath, &pinned, &archived, &mutedUntil, &blocked); err != nil {
 			return nil, err
 		}
 		c.AccountID = accountID
 		c.ID = c.JID
 		c.IsGroup = isGroup == 1
+		c.IsChannel = isChannel == 1
 		c.AvatarURL = avatarToURL(avatarPath)
 		c.Pinned = pinned == 1
 		c.Archived = archived == 1
@@ -251,7 +275,7 @@ func (s *Store) GetChatFlag(ctx context.Context, accountID, jid, column string) 
 
 func (s *Store) SetChatFlag(ctx context.Context, accountID, jid, column string, value int64) error {
 	switch column {
-	case "pinned", "archived", "blocked", "muted_until", "desktop_cmd":
+	case "pinned", "archived", "blocked", "muted_until":
 		// allowed
 	default:
 		return fmt.Errorf("invalid column")
@@ -262,79 +286,16 @@ func (s *Store) SetChatFlag(ctx context.Context, accountID, jid, column string, 
 	return err
 }
 
-func (s *Store) StarMessage(ctx context.Context, accountID, jid, msgID string, starred bool) error {
-	v := 0
-	if starred {
-		v = 1
+// DeleteChat removes a chat and its messages. Used when a channel is
+// unfollowed (no more updates will arrive).
+func (s *Store) DeleteChat(ctx context.Context, accountID, jid string) error {
+	if _, err := s.db.ExecContext(ctx,
+		`DELETE FROM messages WHERE account_id=? AND chat_jid=?`, accountID, jid); err != nil {
+		return err
 	}
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE messages SET starred=? WHERE account_id=? AND chat_jid=? AND id=?`,
-		v, accountID, jid, msgID)
+		`DELETE FROM chats WHERE account_id=? AND jid=?`, accountID, jid)
 	return err
-}
-
-func (s *Store) ListStarred(ctx context.Context, accountID string, limit int) ([]MessageInfo, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_jid, COALESCE(sender,''), COALESCE(text,''), timestamp, from_me, is_group, COALESCE(push_name,''),
-			COALESCE(media_type,''), COALESCE(media_url,''), COALESCE(mime_type,''), COALESCE(file_name,''),
-			COALESCE(file_size,0), COALESCE(width,0), COALESCE(height,0), COALESCE(duration,0),
-			COALESCE(is_ptt,0), COALESCE(caption,''), COALESCE(quoted_id,''), COALESCE(quoted_text,''),
-			COALESCE(quoted_from,'')
-		FROM messages WHERE account_id=? AND starred=1
-		ORDER BY timestamp DESC LIMIT ?`, accountID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanMessages(rows, accountID)
-}
-
-func (s *Store) SearchMessages(ctx context.Context, accountID, query string, limit int) ([]MessageInfo, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
-	q := "%" + query + "%"
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_jid, COALESCE(sender,''), COALESCE(text,''), timestamp, from_me, is_group, COALESCE(push_name,''),
-			COALESCE(media_type,''), COALESCE(media_url,''), COALESCE(mime_type,''), COALESCE(file_name,''),
-			COALESCE(file_size,0), COALESCE(width,0), COALESCE(height,0), COALESCE(duration,0),
-			COALESCE(is_ptt,0), COALESCE(caption,''), COALESCE(quoted_id,''), COALESCE(quoted_text,''),
-			COALESCE(quoted_from,'')
-		FROM messages WHERE account_id=? AND deleted=0 AND (text LIKE ? OR caption LIKE ? OR file_name LIKE ?)
-		ORDER BY timestamp DESC LIMIT ?`, accountID, q, q, q, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanMessages(rows, accountID)
-}
-
-func scanMessages(rows *sql.Rows, accountID string) ([]MessageInfo, error) {
-	var out []MessageInfo
-	for rows.Next() {
-		var m MessageInfo
-		var fromMe, isGroup, isPTT int
-		var chatJID string
-		if err := rows.Scan(
-			&m.ID, &chatJID, &m.Sender, &m.Text, &m.Timestamp, &fromMe, &isGroup, &m.PushName,
-			&m.MediaType, &m.MediaURL, &m.MimeType, &m.FileName,
-			&m.FileSize, &m.Width, &m.Height, &m.Duration,
-			&isPTT, &m.Caption, &m.QuotedID, &m.QuotedText, &m.QuotedFrom,
-		); err != nil {
-			return nil, err
-		}
-		m.AccountID = accountID
-		m.JID = chatJID
-		m.ChatID = chatJID
-		m.FromMe = fromMe == 1
-		m.IsGroup = isGroup == 1
-		m.IsPTT = isPTT == 1
-		out = append(out, m)
-	}
-	return out, rows.Err()
 }
 
 func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
@@ -360,7 +321,7 @@ func (s *Store) ListMessages(ctx context.Context, accountID, jid string, limit i
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	q := `SELECT id, COALESCE(sender,''), COALESCE(text,''), timestamp, from_me, is_group, COALESCE(push_name,''),
+	q := `SELECT id, COALESCE(sender,''), COALESCE(text,''), timestamp, from_me, is_group, is_channel, COALESCE(push_name,''),
 			COALESCE(media_type,''), COALESCE(media_url,''), COALESCE(mime_type,''), COALESCE(file_name,''),
 			COALESCE(file_size,0), COALESCE(width,0), COALESCE(height,0), COALESCE(duration,0),
 			COALESCE(is_ptt,0), COALESCE(caption,''), COALESCE(quoted_id,''), COALESCE(quoted_text,''),
@@ -383,9 +344,9 @@ func (s *Store) ListMessages(ctx context.Context, accountID, jid string, limit i
 	var out []MessageInfo
 	for rows.Next() {
 		var m MessageInfo
-		var fromMe, isGroup, isPTT, deleted int
+		var fromMe, isGroup, isChannel, isPTT, deleted int
 		if err := rows.Scan(
-			&m.ID, &m.Sender, &m.Text, &m.Timestamp, &fromMe, &isGroup, &m.PushName,
+			&m.ID, &m.Sender, &m.Text, &m.Timestamp, &fromMe, &isGroup, &isChannel, &m.PushName,
 			&m.MediaType, &m.MediaURL, &m.MimeType, &m.FileName,
 			&m.FileSize, &m.Width, &m.Height, &m.Duration,
 			&isPTT, &m.Caption, &m.QuotedID, &m.QuotedText, &m.QuotedFrom, &deleted,
@@ -397,6 +358,7 @@ func (s *Store) ListMessages(ctx context.Context, accountID, jid string, limit i
 		m.ChatID = jid
 		m.FromMe = fromMe == 1
 		m.IsGroup = isGroup == 1
+		m.IsChannel = isChannel == 1
 		m.IsPTT = isPTT == 1
 		if deleted == 1 {
 			m.Text = "Pesan ini dihapus"

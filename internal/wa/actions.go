@@ -58,22 +58,6 @@ func (m *Manager) BlockChat(ctx context.Context, sessionID, jidStr string, block
 	return m.store.SetChatFlag(context.Background(), sessionID, jidStr, "blocked", v)
 }
 
-// === Star ===
-
-func (m *Manager) StarMessage(ctx context.Context, accountID, jid, msgID string, starred bool) error {
-	return m.store.StarMessage(ctx, accountID, jid, msgID, starred)
-}
-
-func (m *Manager) ListStarred(ctx context.Context, accountID string, limit int) ([]MessageInfo, error) {
-	return m.store.ListStarred(ctx, accountID, limit)
-}
-
-// === Search ===
-
-func (m *Manager) SearchMessages(ctx context.Context, accountID, query string, limit int) ([]MessageInfo, error) {
-	return m.store.SearchMessages(ctx, accountID, query, limit)
-}
-
 // === Forward ===
 
 func (m *Manager) ForwardMessage(ctx context.Context, sessionID, fromChatJID, msgID string, toJIDs []string) error {
@@ -321,7 +305,7 @@ func (m *Manager) SetSelfStatus(ctx context.Context, sessionID, status string) e
 	if !ok {
 		return errors.New("session not found")
 	}
-	return s.Client.SetStatusMessage(ctx, status)
+	return s.Client.SetStatusMessage(ctx, types.SetStatusInput{Text: proto.String(status)})
 }
 
 func (m *Manager) SetSelfProfilePicture(ctx context.Context, sessionID, filePath string) error {

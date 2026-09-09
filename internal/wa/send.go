@@ -70,6 +70,45 @@ type SendMediaResult struct {
 	MimeType  string `json:"mimeType"`
 }
 
+// sendMedia uploads and sends a media message. Newsletter JIDs use the
+// unencrypted upload path (UploadNewsletter) and require the returned media
+// handle in the send request. The build callback constructs the protobuf
+// message; MediaKey/FileEncSHA256 are only populated for encrypted uploads,
+// so the callback should set them only when len(uploaded.MediaKey) > 0.
+func (m *Manager) sendMedia(ctx context.Context, s *Session, jid types.JID, filePath, mimeType string, mediaType whatsmeow.MediaType, build func(uploaded whatsmeow.UploadResponse) *waE2E.Message) (*SendMediaResult, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	var uploaded whatsmeow.UploadResponse
+	var extra []whatsmeow.SendRequestExtra
+	if jid.Server == types.NewsletterServer {
+		uploaded, err = s.Client.UploadNewsletter(ctx, data, mediaType)
+		if err != nil {
+			return nil, fmt.Errorf("upload: %w", err)
+		}
+		extra = []whatsmeow.SendRequestExtra{{MediaHandle: uploaded.Handle}}
+	} else {
+		uploaded, err = s.Client.Upload(ctx, data, mediaType)
+		if err != nil {
+			return nil, fmt.Errorf("upload: %w", err)
+		}
+	}
+
+	resp, err := s.Client.SendMessage(ctx, jid, build(uploaded), extra...)
+	if err != nil {
+		return nil, err
+	}
+
+	localPath, _ := m.copyToMedia(filePath, resp.ID, mimeType)
+	url := ""
+	if localPath != "" {
+		url = "/media/" + filepath.Base(localPath)
+	}
+	return &SendMediaResult{MessageID: resp.ID, LocalURL: url, MimeType: mimeType}, nil
+}
+
 func (m *Manager) SendImage(ctx context.Context, sessionID, jidStr, filePath, caption string, quoted *QuotedRef) (*SendMediaResult, error) {
 	s, ok := m.sessionByID(sessionID)
 	if !ok {
@@ -82,41 +121,23 @@ func (m *Manager) SendImage(ctx context.Context, sessionID, jidStr, filePath, ca
 	if err != nil {
 		return nil, fmt.Errorf("invalid jid: %w", err)
 	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
-	}
 	mimeType := detectMime(filePath, "image/jpeg")
-
-	uploaded, err := s.Client.Upload(ctx, data, whatsmeow.MediaImage)
-	if err != nil {
-		return nil, fmt.Errorf("upload: %w", err)
-	}
-
-	msg := &waE2E.Message{
-		ImageMessage: &waE2E.ImageMessage{
-			Caption:       proto.String(caption),
-			Mimetype:      proto.String(mimeType),
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			ContextInfo:   buildQuoteContext(quoted),
-		},
-	}
-	resp, err := s.Client.SendMessage(ctx, jid, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	localPath, _ := m.copyToMedia(filePath, resp.ID, mimeType)
-	url := ""
-	if localPath != "" {
-		url = "/media/" + filepath.Base(localPath)
-	}
-	return &SendMediaResult{MessageID: resp.ID, LocalURL: url, MimeType: mimeType}, nil
+	return m.sendMedia(ctx, s, jid, filePath, mimeType, whatsmeow.MediaImage, func(uploaded whatsmeow.UploadResponse) *waE2E.Message {
+		im := &waE2E.ImageMessage{
+			Caption:     proto.String(caption),
+			Mimetype:    proto.String(mimeType),
+			URL:         proto.String(uploaded.URL),
+			DirectPath:  proto.String(uploaded.DirectPath),
+			FileSHA256:  uploaded.FileSHA256,
+			FileLength:  proto.Uint64(uploaded.FileLength),
+			ContextInfo: buildQuoteContext(quoted),
+		}
+		if len(uploaded.MediaKey) > 0 {
+			im.MediaKey = uploaded.MediaKey
+			im.FileEncSHA256 = uploaded.FileEncSHA256
+		}
+		return &waE2E.Message{ImageMessage: im}
+	})
 }
 
 func (m *Manager) SendVideo(ctx context.Context, sessionID, jidStr, filePath, caption string, quoted *QuotedRef) (*SendMediaResult, error) {
@@ -131,40 +152,23 @@ func (m *Manager) SendVideo(ctx context.Context, sessionID, jidStr, filePath, ca
 	if err != nil {
 		return nil, fmt.Errorf("invalid jid: %w", err)
 	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
 	mimeType := detectMime(filePath, "video/mp4")
-
-	uploaded, err := s.Client.Upload(ctx, data, whatsmeow.MediaVideo)
-	if err != nil {
-		return nil, err
-	}
-
-	msg := &waE2E.Message{
-		VideoMessage: &waE2E.VideoMessage{
-			Caption:       proto.String(caption),
-			Mimetype:      proto.String(mimeType),
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			ContextInfo:   buildQuoteContext(quoted),
-		},
-	}
-	resp, err := s.Client.SendMessage(ctx, jid, msg)
-	if err != nil {
-		return nil, err
-	}
-	localPath, _ := m.copyToMedia(filePath, resp.ID, mimeType)
-	url := ""
-	if localPath != "" {
-		url = "/media/" + filepath.Base(localPath)
-	}
-	return &SendMediaResult{MessageID: resp.ID, LocalURL: url, MimeType: mimeType}, nil
+	return m.sendMedia(ctx, s, jid, filePath, mimeType, whatsmeow.MediaVideo, func(uploaded whatsmeow.UploadResponse) *waE2E.Message {
+		vm := &waE2E.VideoMessage{
+			Caption:     proto.String(caption),
+			Mimetype:    proto.String(mimeType),
+			URL:         proto.String(uploaded.URL),
+			DirectPath:  proto.String(uploaded.DirectPath),
+			FileSHA256:  uploaded.FileSHA256,
+			FileLength:  proto.Uint64(uploaded.FileLength),
+			ContextInfo: buildQuoteContext(quoted),
+		}
+		if len(uploaded.MediaKey) > 0 {
+			vm.MediaKey = uploaded.MediaKey
+			vm.FileEncSHA256 = uploaded.FileEncSHA256
+		}
+		return &waE2E.Message{VideoMessage: vm}
+	})
 }
 
 func (m *Manager) SendDocument(ctx context.Context, sessionID, jidStr, filePath string, quoted *QuotedRef) (*SendMediaResult, error) {
@@ -179,40 +183,24 @@ func (m *Manager) SendDocument(ctx context.Context, sessionID, jidStr, filePath 
 	if err != nil {
 		return nil, fmt.Errorf("invalid jid: %w", err)
 	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
 	mimeType := detectMime(filePath, "application/octet-stream")
 	fileName := filepath.Base(filePath)
-
-	uploaded, err := s.Client.Upload(ctx, data, whatsmeow.MediaDocument)
-	if err != nil {
-		return nil, err
-	}
-	msg := &waE2E.Message{
-		DocumentMessage: &waE2E.DocumentMessage{
-			FileName:      proto.String(fileName),
-			Mimetype:      proto.String(mimeType),
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			ContextInfo:   buildQuoteContext(quoted),
-		},
-	}
-	resp, err := s.Client.SendMessage(ctx, jid, msg)
-	if err != nil {
-		return nil, err
-	}
-	localPath, _ := m.copyToMedia(filePath, resp.ID, mimeType)
-	url := ""
-	if localPath != "" {
-		url = "/media/" + filepath.Base(localPath)
-	}
-	return &SendMediaResult{MessageID: resp.ID, LocalURL: url, MimeType: mimeType}, nil
+	return m.sendMedia(ctx, s, jid, filePath, mimeType, whatsmeow.MediaDocument, func(uploaded whatsmeow.UploadResponse) *waE2E.Message {
+		dm := &waE2E.DocumentMessage{
+			FileName:    proto.String(fileName),
+			Mimetype:    proto.String(mimeType),
+			URL:         proto.String(uploaded.URL),
+			DirectPath:  proto.String(uploaded.DirectPath),
+			FileSHA256:  uploaded.FileSHA256,
+			FileLength:  proto.Uint64(uploaded.FileLength),
+			ContextInfo: buildQuoteContext(quoted),
+		}
+		if len(uploaded.MediaKey) > 0 {
+			dm.MediaKey = uploaded.MediaKey
+			dm.FileEncSHA256 = uploaded.FileEncSHA256
+		}
+		return &waE2E.Message{DocumentMessage: dm}
+	})
 }
 
 func (m *Manager) SendAudio(ctx context.Context, sessionID, jidStr, filePath string, ptt bool, quoted *QuotedRef) (*SendMediaResult, error) {
@@ -227,39 +215,23 @@ func (m *Manager) SendAudio(ctx context.Context, sessionID, jidStr, filePath str
 	if err != nil {
 		return nil, fmt.Errorf("invalid jid: %w", err)
 	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
 	mimeType := detectMime(filePath, "audio/ogg; codecs=opus")
-
-	uploaded, err := s.Client.Upload(ctx, data, whatsmeow.MediaAudio)
-	if err != nil {
-		return nil, err
-	}
-	msg := &waE2E.Message{
-		AudioMessage: &waE2E.AudioMessage{
-			PTT:           proto.Bool(ptt),
-			Mimetype:      proto.String(mimeType),
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			ContextInfo:   buildQuoteContext(quoted),
-		},
-	}
-	resp, err := s.Client.SendMessage(ctx, jid, msg)
-	if err != nil {
-		return nil, err
-	}
-	localPath, _ := m.copyToMedia(filePath, resp.ID, mimeType)
-	url := ""
-	if localPath != "" {
-		url = "/media/" + filepath.Base(localPath)
-	}
-	return &SendMediaResult{MessageID: resp.ID, LocalURL: url, MimeType: mimeType}, nil
+	return m.sendMedia(ctx, s, jid, filePath, mimeType, whatsmeow.MediaAudio, func(uploaded whatsmeow.UploadResponse) *waE2E.Message {
+		am := &waE2E.AudioMessage{
+			PTT:         proto.Bool(ptt),
+			Mimetype:    proto.String(mimeType),
+			URL:         proto.String(uploaded.URL),
+			DirectPath:  proto.String(uploaded.DirectPath),
+			FileSHA256:  uploaded.FileSHA256,
+			FileLength:  proto.Uint64(uploaded.FileLength),
+			ContextInfo: buildQuoteContext(quoted),
+		}
+		if len(uploaded.MediaKey) > 0 {
+			am.MediaKey = uploaded.MediaKey
+			am.FileEncSHA256 = uploaded.FileEncSHA256
+		}
+		return &waE2E.Message{AudioMessage: am}
+	})
 }
 
 func (m *Manager) DeleteMessage(ctx context.Context, sessionID, jidStr, messageID string, forEveryone bool) error {
@@ -313,59 +285,6 @@ func (m *Manager) ReactMessage(ctx context.Context, sessionID, jidStr, messageID
 	}
 	_, err = s.Client.SendMessage(ctx, jid, s.Client.BuildReaction(jid, senderJID, types.MessageID(messageID), emoji))
 	return err
-}
-
-func (m *Manager) PostStatusText(ctx context.Context, sessionID, text string) (string, error) {
-	s, ok := m.sessionByID(sessionID)
-	if !ok {
-		return "", errors.New("session not found")
-	}
-	if !s.Connected {
-		return "", errors.New("session not connected")
-	}
-	resp, err := s.Client.SendMessage(ctx, types.StatusBroadcastJID, &waE2E.Message{
-		Conversation: proto.String(text),
-	})
-	if err != nil {
-		return "", err
-	}
-	return resp.ID, nil
-}
-
-func (m *Manager) PostStatusImage(ctx context.Context, sessionID, filePath, caption string) (string, error) {
-	s, ok := m.sessionByID(sessionID)
-	if !ok {
-		return "", errors.New("session not found")
-	}
-	if !s.Connected {
-		return "", errors.New("session not connected")
-	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-	mimeType := detectMime(filePath, "image/jpeg")
-	uploaded, err := s.Client.Upload(ctx, data, whatsmeow.MediaImage)
-	if err != nil {
-		return "", err
-	}
-	msg := &waE2E.Message{
-		ImageMessage: &waE2E.ImageMessage{
-			Caption:       proto.String(caption),
-			Mimetype:      proto.String(mimeType),
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-		},
-	}
-	resp, err := s.Client.SendMessage(ctx, types.StatusBroadcastJID, msg)
-	if err != nil {
-		return "", err
-	}
-	return resp.ID, nil
 }
 
 func (m *Manager) copyToMedia(srcPath, msgID, mimeType string) (string, error) {

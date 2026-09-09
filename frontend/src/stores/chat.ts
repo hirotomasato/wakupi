@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Account, Chat, Message } from '../types'
+import type { Account, Chat, Message, ChannelInfo } from '../types'
 import {
   ListSessions,
   StartLogin,
+  StartLoginWithPhone,
   Logout,
   SendText,
   SendImage,
@@ -24,11 +25,14 @@ import {
   ArchiveChat,
   MuteChat,
   BlockChat,
-  StarMessage,
-  ListStarred,
-  SearchMessages,
   ForwardMessage,
   IsOnWhatsApp,
+  GetSubscribedChannels,
+  GetChannelInfoByInvite,
+  FollowChannel,
+  UnfollowChannel,
+  LoadChannelMessages,
+  GetChannelInfo,
 } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
@@ -46,6 +50,8 @@ interface BackendChat {
   jid: string
   name: string
   isGroup: boolean
+  isChannel: boolean
+  channelRole?: string
   lastMessage: string
   lastTime: number
   avatarUrl?: string
@@ -65,6 +71,7 @@ interface BackendMessage {
   timestamp: number
   fromMe: boolean
   isGroup: boolean
+  isChannel: boolean
   pushName: string
   mediaType?: string
   mediaUrl?: string
@@ -183,12 +190,20 @@ export const useChatStore = defineStore('chat', () => {
   const qrTimeoutSec = ref<number>(0)
   const loginStatus = ref<'idle' | 'waiting' | 'pairing' | 'success' | 'timeout' | 'error'>('idle')
   const loginError = ref<string>('')
+  // Login method: "qr" (scan) or "phone" (link with phone number).
+  const loginMethod = ref<'qr' | 'phone'>('qr')
+  const phoneNumber = ref<string>('')
+  const pairCode = ref<string>('')
 
   const presence = ref<Record<string, { online: boolean; lastSeen: number }>>({})
   const chatPresence = ref<Record<string, { state: 'composing' | 'paused'; media: string }>>({})
 
   const replyTo = ref<Message | null>(null)
   const previewMessage = ref<Message | null>(null)
+
+  // Channel state
+  const channelInfos = ref<ChannelInfo[]>([])
+  const loadingChannels = ref(false)
 
   const visibleChats = computed(() => {
     const seen = new Set<string>()
@@ -273,6 +288,8 @@ export const useChatStore = defineStore('chat', () => {
       _sortKey: c.lastTime || prev?._sortKey || 0,
       unread: prev?.unread ?? 0,
       isGroup: c.isGroup,
+      isChannel: c.isChannel,
+      role: c.channelRole || prev?.role,
       pinned: c.pinned ?? prev?.pinned ?? false,
       archived: c.archived ?? prev?.archived ?? false,
       mutedUntil: c.mutedUntil ?? prev?.mutedUntil ?? 0,
@@ -322,6 +339,7 @@ export const useChatStore = defineStore('chat', () => {
       jid: m.jid,
       name: '',
       isGroup: m.isGroup,
+      isChannel: m.isChannel,
       lastMessage: m.text || lastMessagePreview(msg),
       lastTime: m.timestamp,
     })
@@ -404,36 +422,6 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function searchAll(query: string) {
-    if (!activeAccountId.value || !query.trim()) return [] as any[]
-    try {
-      return (await SearchMessages(activeAccountId.value, query, 100)) || []
-    } catch (e) {
-      console.error('search', e)
-      return []
-    }
-  }
-
-  async function getStarredList() {
-    if (!activeAccountId.value) return [] as any[]
-    try {
-      return (await ListStarred(activeAccountId.value, 100)) || []
-    } catch (e) {
-      console.error(e)
-      return []
-    }
-  }
-
-  async function toggleStar(msg: Message) {
-    const chat = activeChat.value
-    if (!chat) return
-    const next = !(msg as any).starred
-    try {
-      await StarMessage(chat.accountId, chat.jid, msg.id, next)
-      ;(msg as any).starred = next
-    } catch (e) { console.error(e) }
-  }
-
   async function forwardTo(msg: Message, chatIds: string[]) {
     const chat = activeChat.value
     if (!chat) return
@@ -471,6 +459,7 @@ export const useChatStore = defineStore('chat', () => {
         jid,
         name: name || jid.split('@')[0],
         isGroup: jid.endsWith('@g.us'),
+        isChannel: jid.endsWith('@newsletter'),
         lastMessage: '',
         lastTime: 0,
       })
@@ -540,6 +529,8 @@ export const useChatStore = defineStore('chat', () => {
           _sortKey: c.lastTime,
           unread: 0,
           isGroup: c.isGroup,
+          isChannel: c.isChannel,
+          role: c.channelRole,
           pinned: c.pinned ?? false,
           archived: c.archived ?? false,
           mutedUntil: c.mutedUntil ?? 0,
@@ -598,6 +589,59 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function loadChannelMsgs(accountId: string, jid: string) {
+    try {
+      const list = (await LoadChannelMessages(accountId, jid, 50)) as unknown as BackendMessage[]
+      for (const m of list || []) {
+        appendMessage({ ...m, accountId, jid })
+      }
+    } catch (e) {
+      console.error('LoadChannelMessages error', e)
+    }
+  }
+
+  async function loadSubscribedChannels() {
+    if (!activeAccountId.value) return
+    loadingChannels.value = true
+    try {
+      channelInfos.value = (await GetSubscribedChannels(activeAccountId.value)) as unknown as ChannelInfo[]
+    } catch (e) {
+      console.error('GetSubscribedChannels error', e)
+    } finally {
+      loadingChannels.value = false
+    }
+  }
+
+  async function resolveChannelByInvite(key: string): Promise<ChannelInfo | null> {
+    if (!activeAccountId.value) return null
+    try {
+      return (await GetChannelInfoByInvite(activeAccountId.value, key)) as unknown as ChannelInfo
+    } catch (e) {
+      console.error('GetChannelInfoByInvite error', e)
+      return null
+    }
+  }
+
+  async function followChannel(jid: string) {
+    if (!activeAccountId.value) return
+    try {
+      await FollowChannel(activeAccountId.value, jid)
+    } catch (e) {
+      console.error('FollowChannel error', e)
+      throw e
+    }
+  }
+
+  async function unfollowChannel(jid: string) {
+    if (!activeAccountId.value) return
+    try {
+      await UnfollowChannel(activeAccountId.value, jid)
+    } catch (e) {
+      console.error('UnfollowChannel error', e)
+      throw e
+    }
+  }
+
   async function startLogin(name: string = '') {
     showLogin.value = true
     loginStatus.value = 'waiting'
@@ -605,6 +649,20 @@ export const useChatStore = defineStore('chat', () => {
     qrCode.value = ''
     try {
       qrSessionId.value = await StartLogin(name)
+    } catch (e: any) {
+      loginStatus.value = 'error'
+      loginError.value = e?.message || String(e)
+    }
+  }
+
+  async function startLoginWithPhone(name: string = '', phone: string) {
+    showLogin.value = true
+    loginStatus.value = 'waiting'
+    loginError.value = ''
+    qrCode.value = ''
+    pairCode.value = ''
+    try {
+      qrSessionId.value = await StartLoginWithPhone(name, phone)
     } catch (e: any) {
       loginStatus.value = 'error'
       loginError.value = e?.message || String(e)
@@ -650,18 +708,27 @@ export const useChatStore = defineStore('chat', () => {
     saveActiveChat(c.accountId, id)
 
     if (!messages.value[id] || messages.value[id].length === 0) {
-      loadHistoryForChat(c.accountId, c.jid).catch(() => {})
+      if (c.isChannel) loadChannelMsgs(c.accountId, c.jid)
+      else loadHistoryForChat(c.accountId, c.jid)
     }
 
-    SubscribePresence(c.accountId, c.jid).catch(() => {})
-    if (!c.avatarUrl) RefreshAvatar(c.accountId, c.jid).catch(() => {})
-
-    const arr = messages.value[id] || []
-    const unread = arr.filter((m) => !m.fromMe).map((m) => m.id)
-    if (unread.length > 0) {
-      const lastMsg = [...arr].reverse().find((m) => !m.fromMe)
-      const senderJID = lastMsg?._senderJID || ''
-      MarkRead(c.accountId, c.jid, senderJID, unread).catch(() => {})
+    if (c.isChannel) {
+      // Determine the viewer role (admin/owner can post, subscriber cannot).
+      GetChannelInfo(c.accountId, c.jid)
+        .then((info) => {
+          if (info?.role) c.role = info.role
+        })
+        .catch(() => {})
+    } else {
+      SubscribePresence(c.accountId, c.jid).catch(() => {})
+      if (!c.avatarUrl) RefreshAvatar(c.accountId, c.jid).catch(() => {})
+      const arr = messages.value[id] || []
+      const unread = arr.filter((m) => !m.fromMe).map((m) => m.id)
+      if (unread.length > 0) {
+        const lastMsg = [...arr].reverse().find((m) => !m.fromMe)
+        const senderJID = lastMsg?._senderJID || ''
+        MarkRead(c.accountId, c.jid, senderJID, unread).catch(() => {})
+      }
     }
   }
 
@@ -702,6 +769,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!activeChatId.value || !text.trim()) return
     const chat = chats.value.find((c) => c.id === activeChatId.value)
     if (!chat) return
+    if (chat.isChannel && chat.role !== 'admin' && chat.role !== 'owner') return
     const tempId = 'tmp-' + Date.now()
     const ts = Math.floor(Date.now() / 1000)
     const msg: Message = {
@@ -738,6 +806,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!chatId || !body) return
     const chat = chats.value.find((c) => c.id === chatId)
     if (!chat) return
+    if (chat.isChannel && chat.role !== 'admin' && chat.role !== 'owner') return
 
     const tempId = 'tmp-' + Date.now()
     const ts = Math.floor(Date.now() / 1000)
@@ -944,6 +1013,15 @@ export const useChatStore = defineStore('chat', () => {
       qrSessionId.value = data?.sessionId || qrSessionId.value
       loginStatus.value = 'waiting'
     })
+    EventsOn('wa:pair_code', (data: any) => {
+      pairCode.value = data?.code || ''
+      phoneNumber.value = data?.phone || phoneNumber.value
+      loginStatus.value = 'waiting'
+    })
+    EventsOn('wa:pair_error', (data: any) => {
+      loginStatus.value = 'error'
+      loginError.value = data?.error || 'Gagal generate kode pairing'
+    })
     EventsOn('wa:pair_success', () => {
       loginStatus.value = 'pairing'
     })
@@ -1037,6 +1115,17 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     })
+    EventsOn('wa:channel_left', (d: { accountId: string; jid: string }) => {
+      const id = `${d.accountId}::${d.jid}`
+      chats.value = chats.value.filter((c) => c.id !== id)
+      delete messages.value[id]
+      if (activeChatId.value === id) activeChatId.value = null
+    })
+    EventsOn('wa:channel_mute', (d: { accountId: string; jid: string; muted: boolean }) => {
+      const id = `${d.accountId}::${d.jid}`
+      const chat = chats.value.find((c) => c.id === id)
+      if (chat) chat.mutedUntil = d.muted ? 9999999999999 : 0
+    })
   }
 
   return {
@@ -1055,12 +1144,16 @@ export const useChatStore = defineStore('chat', () => {
     qrTimeoutSec,
     loginStatus,
     loginError,
+    loginMethod,
+    phoneNumber,
+    pairCode,
     presence,
     chatPresence,
     replyTo,
     previewMessage,
     refreshSessions,
     startLogin,
+    startLoginWithPhone,
     logout,
     selectAccount,
     selectChat,
@@ -1079,11 +1172,14 @@ export const useChatStore = defineStore('chat', () => {
     toggleArchive,
     toggleMute,
     toggleBlock,
-    searchAll,
-    getStarredList,
-    toggleStar,
     forwardTo,
     checkIsOnWA,
     startChatWithJID,
+    channelInfos,
+    loadingChannels,
+    loadSubscribedChannels,
+    resolveChannelByInvite,
+    followChannel,
+    unfollowChannel,
   }
 })

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import QRCode from 'qrcode'
-import { Smartphone, X, Loader2, CheckCircle2, RefreshCw } from '@lucide/vue'
+import { Smartphone, X, Loader2, CheckCircle2, RefreshCw, QrCode, Phone } from '@lucide/vue'
 import { useChatStore } from '../stores/chat'
 
 const store = useChatStore()
 const canvas = ref<HTMLCanvasElement | null>(null)
 const accountName = ref('')
+const phoneInput = ref('')
 
 async function render(code: string) {
   if (!canvas.value || !code) return
@@ -30,11 +31,20 @@ onMounted(async () => {
 })
 
 async function handleStart() {
-  await store.startLogin(accountName.value.trim())
+  if (store.loginMethod === 'phone') {
+    const cleaned = phoneInput.value.replace(/\D/g, '')
+    if (!cleaned) return
+    await store.startLoginWithPhone(accountName.value.trim(), cleaned)
+  } else {
+    await store.startLogin(accountName.value.trim())
+  }
 }
 
 function handleClose() {
   store.showLogin = false
+  store.loginMethod = 'qr'
+  phoneInput.value = ''
+  store.pairCode = ''
 }
 </script>
 
@@ -54,11 +64,45 @@ function handleClose() {
 
       <div class="p-6">
         <div v-if="store.loginStatus === 'idle'" class="space-y-4">
-          <div class="flex items-center gap-3 p-3 bg-wa-panel dark:bg-wa-hover-dark rounded-lg">
+          <!-- Method toggle -->
+          <div class="flex bg-wa-panel dark:bg-wa-hover-dark rounded-lg p-1">
+            <button
+              @click="store.loginMethod = 'qr'"
+              class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition"
+              :class="store.loginMethod === 'qr' ? 'bg-white dark:bg-wa-panel-dark text-wa-green shadow-sm' : 'text-wa-muted dark:text-wa-muted-dark'"
+            >
+              <QrCode :size="16" /> QR Code
+            </button>
+            <button
+              @click="store.loginMethod = 'phone'"
+              class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition"
+              :class="store.loginMethod === 'phone' ? 'bg-white dark:bg-wa-panel-dark text-wa-green shadow-sm' : 'text-wa-muted dark:text-wa-muted-dark'"
+            >
+              <Phone :size="16" /> Nomor HP
+            </button>
+          </div>
+
+          <div v-if="store.loginMethod === 'phone'" class="flex items-center gap-3 p-3 bg-wa-panel dark:bg-wa-hover-dark rounded-lg">
+            <Phone :size="22" class="text-wa-green" />
+            <p class="text-sm text-wa-text dark:text-wa-text-dark">
+              Masukkan nomor WhatsApp-mu, lalu masukkan kode yang muncul di WhatsApp HP-mu.
+            </p>
+          </div>
+          <div v-else class="flex items-center gap-3 p-3 bg-wa-panel dark:bg-wa-hover-dark rounded-lg">
             <Smartphone :size="22" class="text-wa-green" />
             <p class="text-sm text-wa-text dark:text-wa-text-dark">
               Buka WhatsApp di HP-mu, lalu pindai QR code untuk menghubungkan akun.
             </p>
+          </div>
+
+          <div v-if="store.loginMethod === 'phone'">
+            <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Nomor WhatsApp</label>
+            <input
+              v-model="phoneInput"
+              type="tel"
+              placeholder="contoh: 08123456789"
+              class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none text-wa-text dark:text-wa-text-dark"
+            />
           </div>
           <div>
             <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark">Label akun (opsional)</label>
@@ -73,23 +117,34 @@ function handleClose() {
             @click="handleStart"
             class="w-full bg-wa-green hover:bg-wa-green-dark text-white font-medium py-2.5 rounded-lg transition"
           >
-            Mulai Pairing
+            {{ store.loginMethod === 'phone' ? 'Generate Kode' : 'Mulai Pairing' }}
           </button>
         </div>
 
         <div v-else-if="store.loginStatus === 'waiting'" class="flex flex-col items-center text-center gap-4">
-          <div class="relative bg-white p-4 rounded-xl border border-wa-border">
-            <canvas v-show="store.qrCode" ref="canvas" class="block" />
-            <div v-if="!store.qrCode" class="w-[264px] h-[264px] flex items-center justify-center">
-              <Loader2 :size="32" class="text-wa-green animate-spin" />
-            </div>
+          <div v-if="store.loginMethod === 'phone' && store.pairCode" class="space-y-3">
+            <p class="text-sm text-wa-muted dark:text-wa-muted-dark">
+              Masukkan kode ini di WhatsApp HP-mu
+            </p>
+            <div class="text-4xl font-mono font-bold tracking-[0.3em] text-wa-green select-all">{{ store.pairCode }}</div>
+            <p class="text-xs text-wa-muted dark:text-wa-muted-dark">
+              WhatsApp → Pengaturan → Perangkat Tertaut → Tautkan dengan nomor telepon
+            </p>
           </div>
-          <ol class="text-sm text-wa-muted dark:text-wa-muted-dark text-left space-y-1 max-w-[320px]">
-            <li>1. Buka WhatsApp di HP-mu</li>
-            <li>2. Ketuk Menu / Pengaturan → Perangkat Tertaut</li>
-            <li>3. Ketuk "Tautkan Perangkat"</li>
-            <li>4. Arahkan kamera ke QR code di atas</li>
-          </ol>
+          <template v-else>
+            <div class="relative bg-white p-4 rounded-xl border border-wa-border">
+              <canvas v-show="store.qrCode" ref="canvas" class="block" />
+              <div v-if="!store.qrCode" class="w-[264px] h-[264px] flex items-center justify-center">
+                <Loader2 :size="32" class="text-wa-green animate-spin" />
+              </div>
+            </div>
+            <ol class="text-sm text-wa-muted dark:text-wa-muted-dark text-left space-y-1 max-w-[320px]">
+              <li>1. Buka WhatsApp di HP-mu</li>
+              <li>2. Ketuk Menu / Pengaturan → Perangkat Tertaut</li>
+              <li>3. Ketuk "Tautkan Perangkat"</li>
+              <li>4. Arahkan kamera ke QR code di atas</li>
+            </ol>
+          </template>
         </div>
 
         <div v-else-if="store.loginStatus === 'pairing'" class="flex flex-col items-center text-center gap-3 py-8">

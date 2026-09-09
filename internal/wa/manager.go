@@ -23,10 +23,6 @@ import (
 
 type EventEmitter func(name string, data ...interface{})
 
-// CSBotHook is called for every incoming non-self, non-status message.
-// It runs in a goroutine so the message pipeline is not blocked.
-type CSBotHook func(s *Session, text string, chatJID types.JID, pushName string)
-
 type Manager struct {
 	mu        sync.RWMutex
 	emit      EventEmitter
@@ -37,14 +33,6 @@ type Manager struct {
 	clients   map[string]*Session
 	avatarMu  sync.Mutex
 	avatarReq map[string]bool
-	csHook    CSBotHook
-}
-
-// SetCSBotHook registers a hook that fires for every incoming non-self
-// text message. The hook runs in a goroutine and does not block the
-// message pipeline.
-func (m *Manager) SetCSBotHook(hook CSBotHook) {
-	m.csHook = hook
 }
 
 type Session struct {
@@ -70,6 +58,8 @@ type ChatInfo struct {
 	JID         string `json:"jid"`
 	Name        string `json:"name"`
 	IsGroup     bool   `json:"isGroup"`
+	IsChannel   bool   `json:"isChannel"`
+	ChannelRole string `json:"channelRole,omitempty"`
 	LastMessage string `json:"lastMessage"`
 	LastTime    int64  `json:"lastTime"`
 	AvatarURL   string `json:"avatarUrl,omitempty"`
@@ -89,6 +79,7 @@ type MessageInfo struct {
 	Timestamp  int64   `json:"timestamp"`
 	FromMe     bool    `json:"fromMe"`
 	IsGroup    bool    `json:"isGroup"`
+	IsChannel  bool    `json:"isChannel"`
 	PushName   string  `json:"pushName"`
 	MediaType  string  `json:"mediaType,omitempty"`
 	MediaURL   string  `json:"mediaUrl,omitempty"`
@@ -143,6 +134,18 @@ type DeletedInfo struct {
 	JID       string `json:"jid"`
 	MessageID string `json:"messageId"`
 	Sender    string `json:"sender"`
+}
+
+// ChannelInfo is a trimmed view of a WhatsApp channel (newsletter) for the UI.
+type ChannelInfo struct {
+	JID             string `json:"jid"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	SubscriberCount int    `json:"subscriberCount"`
+	AvatarURL       string `json:"avatarUrl,omitempty"`
+	IsSubscribed    bool   `json:"isSubscribed"`
+	Role            string `json:"role,omitempty"`
+	InviteCode      string `json:"inviteCode,omitempty"`
 }
 
 func NewManager(dataDir string, emit EventEmitter) (*Manager, error) {
@@ -249,6 +252,7 @@ func (m *Manager) handlerFor(s *Session) func(interface{}) {
 			}
 			m.emit("wa:connected", s.snapshot())
 			go m.seedChatsFromContacts(s)
+			go m.seedChannels(s)
 			go m.markOnline(s)
 		case *events.Disconnected:
 			s.Connected = false
@@ -270,6 +274,12 @@ func (m *Manager) handlerFor(s *Session) func(interface{}) {
 			m.handleHistorySync(s, e)
 		case *events.OfflineSyncCompleted:
 			m.emit("wa:sync_complete", map[string]interface{}{"sessionId": s.ID})
+		case *events.NewsletterJoin:
+			m.handleNewsletterJoin(s, e)
+		case *events.NewsletterLeave:
+			m.handleNewsletterLeave(s, e)
+		case *events.NewsletterMuteChange:
+			m.handleNewsletterMuteChange(s, e)
 		}
 	}
 }
@@ -357,8 +367,26 @@ func (m *Manager) resolveName(s *Session, jid types.JID, fallback string) string
 		if info, err := s.Client.GetGroupInfo(ctx, jid); err == nil && info != nil {
 			return info.Name
 		}
+	} else if jid.Server == types.NewsletterServer {
+		if info, err := s.Client.GetNewsletterInfo(ctx, jid); err == nil && info != nil {
+			return info.ThreadMeta.Name.Text
+		}
+		// Network lookup failed; preserve the stored name from seedChannels
+		// so we don't overwrite it with the raw numeric JID.
+		if name, err := m.store.GetChatName(ctx, s.ID, jid.String()); err == nil && name != "" {
+			return name
+		}
 	} else {
-		if contact, err := s.Client.Store.Contacts.GetContact(ctx, jid); err == nil {
+		// Resolve LID (hidden user) JIDs back to the phone-number JID
+		// so we can look up the contact name. Without this, chats from
+		// privacy-enabled contacts show raw numeric LIDs as names.
+		lookup := jid
+		if jid.Server == types.HiddenUserServer {
+			if pn, err := s.Client.Store.LIDs.GetPNForLID(ctx, jid); err == nil && !pn.IsEmpty() {
+				lookup = pn
+			}
+		}
+		if contact, err := s.Client.Store.Contacts.GetContact(ctx, lookup); err == nil {
 			if contact.FullName != "" {
 				return contact.FullName
 			}
@@ -402,20 +430,7 @@ func (m *Manager) StartLogin(ctx context.Context, sessionName string) (string, e
 					"timeout":   evt.Timeout.Seconds(),
 				})
 			case "success":
-				if s.Client.Store.ID != nil {
-					newID := s.Client.Store.ID.User
-					m.mu.Lock()
-					delete(m.clients, s.ID)
-					s.ID = newID
-					s.JID = s.Client.Store.ID.String()
-					s.Phone = "+" + s.Client.Store.ID.User
-					if s.Name == "" || strings.HasPrefix(s.Name, "Akun ") {
-						s.Name = s.Phone
-					}
-					m.clients[newID] = s
-					m.mu.Unlock()
-				}
-				m.emit("wa:login_success", s.snapshot())
+				m.finalizeLoginSuccess(s)
 			case "timeout":
 				m.emit("wa:qr_timeout", map[string]interface{}{"sessionId": s.ID})
 			default:
@@ -425,6 +440,69 @@ func (m *Manager) StartLogin(ctx context.Context, sessionName string) (string, e
 	}()
 
 	return s.ID, nil
+}
+
+// StartLoginWithPhone links a new account using a pairing code instead of a
+// QR scan ("Link with phone number" flow). It returns the temp session ID;
+// the 8-char code is emitted via "wa:pair_code" once the connection is up.
+func (m *Manager) StartLoginWithPhone(ctx context.Context, sessionName, phone string) (string, error) {
+	dev := m.container.NewDevice()
+	tempID := fmt.Sprintf("new-%d", time.Now().UnixNano())
+	s := m.attach(tempID, dev)
+	if sessionName != "" {
+		s.Name = sessionName
+	}
+
+	qrChan, err := s.Client.GetQRChannel(ctx)
+	if err != nil {
+		return "", err
+	}
+	if err := s.Client.Connect(); err != nil {
+		return "", err
+	}
+
+	go func() {
+		codeSent := false
+		for evt := range qrChan {
+			switch evt.Event {
+			case "code":
+				// Connection established — generate the pairing code once.
+				if codeSent {
+					continue
+				}
+				codeSent = true
+				code, err := s.Client.PairPhone(ctx, phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+				if err != nil {
+					m.emit("wa:pair_error", map[string]interface{}{"sessionId": s.ID, "error": err.Error()})
+					return
+				}
+				m.emit("wa:pair_code", map[string]interface{}{"sessionId": s.ID, "code": code, "phone": phone})
+			case "success":
+				m.finalizeLoginSuccess(s)
+			case "timeout":
+				m.emit("wa:qr_timeout", map[string]interface{}{"sessionId": s.ID})
+			}
+		}
+	}()
+
+	return s.ID, nil
+}
+
+func (m *Manager) finalizeLoginSuccess(s *Session) {
+	if s.Client.Store.ID != nil {
+		newID := s.Client.Store.ID.User
+		m.mu.Lock()
+		delete(m.clients, s.ID)
+		s.ID = newID
+		s.JID = s.Client.Store.ID.String()
+		s.Phone = "+" + s.Client.Store.ID.User
+		if s.Name == "" || strings.HasPrefix(s.Name, "Akun ") {
+			s.Name = s.Phone
+		}
+		m.clients[newID] = s
+		m.mu.Unlock()
+	}
+	m.emit("wa:login_success", s.snapshot())
 }
 
 func (m *Manager) connect(s *Session) {

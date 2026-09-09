@@ -26,7 +26,6 @@ const dallESizes = [
 const presets = [
   { id: 'openai', label: 'OpenAI DALL-E', provider: 'openai', baseUrl: '', model: 'dall-e-3' },
   { id: 'gemini', label: 'Google Gemini Imagen', provider: 'gemini', baseUrl: '', model: 'imagen-3-flash' },
-  { id: 'gamapi', label: 'GamAPI (Gratis)', provider: 'gamapi', baseUrl: '', model: 'imagen-3-flash' },
   { id: 'custom', label: 'Custom OpenAI-compat', provider: 'openai', baseUrl: '', model: '' },
 ]
 
@@ -41,7 +40,6 @@ onMounted(async () => {
   await ig.loadConfig()
   localCfg.value = { ...ig.config }
   if (ig.config.enabled) ig.testConnection(ig.config).catch(() => {})
-  if (ig.isGamAPI) ig.loadGamAPIData()
 })
 
 function pickPreset(p: typeof presets[number]) {
@@ -150,7 +148,6 @@ function downloadImage(url: string, idx: number) {
                 <select v-model="localCfg.provider" class="mt-1 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none text-wa-text dark:text-wa-text-dark">
                   <option value="openai">OpenAI / DALL-E</option>
                   <option value="gemini">Google Gemini / Imagen</option>
-                  <option value="gamapi">GamAPI (Image Generation)</option>
                   <option value="ollama">Ollama</option>
                 </select>
               </div>
@@ -288,29 +285,7 @@ function downloadImage(url: string, idx: number) {
           <p class="text-xs font-medium text-wa-text dark:text-wa-text-dark">Provider</p>
           <p class="text-sm font-semibold text-wa-text dark:text-wa-text-dark mt-0.5">
             {{ ig.config.provider.toUpperCase() }}
-            <span v-if="ig.isGamAPI" class="ml-1 text-wa-green text-xs"> • Unlimited</span>
           </p>
-        </div>
-
-        <div v-if="ig.isGamAPI && ig.gamapiModels.length">
-          <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Model</label>
-          <select v-model="ig.imgModel" class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark font-mono">
-            <option v-for="m in ig.gamapiModels" :key="m" :value="m">{{ m }}</option>
-          </select>
-        </div>
-
-        <div v-if="ig.isGamAPI && Object.keys(ig.gamapiStyles).length">
-          <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Style</label>
-          <select v-model="ig.imgStyle" class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark">
-            <option v-for="[k, v] in Object.entries(ig.gamapiStyles)" :key="k" :value="k">{{ v }}</option>
-          </select>
-        </div>
-
-        <div v-if="ig.isGamAPI && Object.keys(ig.gamapiRatios).length">
-          <label class="text-xs font-medium text-wa-muted dark:text-wa-muted-dark uppercase tracking-wide">Aspect Ratio</label>
-          <select v-model="ig.imgRatio" class="mt-1.5 w-full bg-wa-panel dark:bg-wa-hover-dark rounded-lg px-3 py-2 text-sm outline-none border border-wa-border dark:border-wa-border-dark text-wa-text dark:text-wa-text-dark">
-            <option v-for="[k, v] in Object.entries(ig.gamapiRatios)" :key="k" :value="k">{{ v }}</option>
-          </select>
         </div>
 
         <div v-if="ig.config.provider === 'openai'">

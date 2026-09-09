@@ -1,9 +1,13 @@
 # Build output
 build/bin
 frontend/dist
+wakupi
 
 # Node
 node_modules
+
+# Test scripts (may contain secrets)
+scripts/
 
 # WhatsApp data (sessions, database, media) - SENSITIVE
 data/

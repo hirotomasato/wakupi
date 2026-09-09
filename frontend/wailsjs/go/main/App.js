@@ -18,18 +18,6 @@ export function AIGenerateImage(arg1, arg2) {
   return window['go']['main']['App']['AIGenerateImage'](arg1, arg2);
 }
 
-export function AIGetGamAPIModels() {
-  return window['go']['main']['App']['AIGetGamAPIModels']();
-}
-
-export function AIGetGamAPIRatios() {
-  return window['go']['main']['App']['AIGetGamAPIRatios']();
-}
-
-export function AIGetGamAPIStyles() {
-  return window['go']['main']['App']['AIGetGamAPIStyles']();
-}
-
 export function AIListModels(arg1) {
   return window['go']['main']['App']['AIListModels'](arg1);
 }
@@ -54,10 +42,6 @@ export function BlockChat(arg1, arg2, arg3) {
   return window['go']['main']['App']['BlockChat'](arg1, arg2, arg3);
 }
 
-export function CSBotTestConnection(arg1) {
-  return window['go']['main']['App']['CSBotTestConnection'](arg1);
-}
-
 export function CopyToClipboard(arg1) {
   return window['go']['main']['App']['CopyToClipboard'](arg1);
 }
@@ -70,6 +54,10 @@ export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
 
+export function FollowChannel(arg1, arg2) {
+  return window['go']['main']['App']['FollowChannel'](arg1, arg2);
+}
+
 export function ForwardMessage(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ForwardMessage'](arg1, arg2, arg3, arg4);
 }
@@ -78,8 +66,12 @@ export function GetAIConfig() {
   return window['go']['main']['App']['GetAIConfig']();
 }
 
-export function GetCSBotConfig() {
-  return window['go']['main']['App']['GetCSBotConfig']();
+export function GetChannelInfo(arg1, arg2) {
+  return window['go']['main']['App']['GetChannelInfo'](arg1, arg2);
+}
+
+export function GetChannelInfoByInvite(arg1, arg2) {
+  return window['go']['main']['App']['GetChannelInfoByInvite'](arg1, arg2);
 }
 
 export function GetGroupInfo(arg1, arg2) {
@@ -88,6 +80,10 @@ export function GetGroupInfo(arg1, arg2) {
 
 export function GetImageGenConfig() {
   return window['go']['main']['App']['GetImageGenConfig']();
+}
+
+export function GetSubscribedChannels(arg1) {
+  return window['go']['main']['App']['GetSubscribedChannels'](arg1);
 }
 
 export function ImageGenTestConnection(arg1) {
@@ -106,8 +102,8 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
-export function ListStarred(arg1, arg2) {
-  return window['go']['main']['App']['ListStarred'](arg1, arg2);
+export function LoadChannelMessages(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LoadChannelMessages'](arg1, arg2, arg3);
 }
 
 export function LoadChats(arg1) {
@@ -124,18 +120,6 @@ export function Logout(arg1) {
 
 export function MarkRead(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['MarkRead'](arg1, arg2, arg3, arg4);
-}
-
-export function MarketGetChart(arg1, arg2) {
-  return window['go']['main']['App']['MarketGetChart'](arg1, arg2);
-}
-
-export function MarketGetQuote(arg1) {
-  return window['go']['main']['App']['MarketGetQuote'](arg1);
-}
-
-export function MarketGetQuotes(arg1) {
-  return window['go']['main']['App']['MarketGetQuotes'](arg1);
 }
 
 export function MediaHTTPHandler() {
@@ -158,14 +142,6 @@ export function PinChat(arg1, arg2, arg3) {
   return window['go']['main']['App']['PinChat'](arg1, arg2, arg3);
 }
 
-export function PostStatusImage(arg1, arg2, arg3) {
-  return window['go']['main']['App']['PostStatusImage'](arg1, arg2, arg3);
-}
-
-export function PostStatusText(arg1, arg2) {
-  return window['go']['main']['App']['PostStatusText'](arg1, arg2);
-}
-
 export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
@@ -184,10 +160,6 @@ export function SaveBase64Image(arg1) {
 
 export function SaveTempBlob(arg1, arg2) {
   return window['go']['main']['App']['SaveTempBlob'](arg1, arg2);
-}
-
-export function SearchMessages(arg1, arg2, arg3) {
-  return window['go']['main']['App']['SearchMessages'](arg1, arg2, arg3);
 }
 
 export function SendAudio(arg1, arg2, arg3, arg4, arg5) {
@@ -218,10 +190,6 @@ export function SetAIConfig(arg1) {
   return window['go']['main']['App']['SetAIConfig'](arg1);
 }
 
-export function SetCSBotConfig(arg1) {
-  return window['go']['main']['App']['SetCSBotConfig'](arg1);
-}
-
 export function SetGroupName(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetGroupName'](arg1, arg2, arg3);
 }
@@ -238,16 +206,20 @@ export function SetSelfStatus(arg1, arg2) {
   return window['go']['main']['App']['SetSelfStatus'](arg1, arg2);
 }
 
-export function StarMessage(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['StarMessage'](arg1, arg2, arg3, arg4);
-}
-
 export function StartLogin(arg1) {
   return window['go']['main']['App']['StartLogin'](arg1);
 }
 
+export function StartLoginWithPhone(arg1, arg2) {
+  return window['go']['main']['App']['StartLoginWithPhone'](arg1, arg2);
+}
+
 export function SubscribePresence(arg1, arg2) {
   return window['go']['main']['App']['SubscribePresence'](arg1, arg2);
+}
+
+export function UnfollowChannel(arg1, arg2) {
+  return window['go']['main']['App']['UnfollowChannel'](arg1, arg2);
 }
 
 export function UpdateGroupParticipants(arg1, arg2, arg3, arg4) {

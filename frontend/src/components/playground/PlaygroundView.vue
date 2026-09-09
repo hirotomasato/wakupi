@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { MessageSquareText, BarChart3 } from '@lucide/vue'
+import { MessageSquareText } from '@lucide/vue'
 import { usePlaygroundStore } from '../../stores/playground'
 import { useUIStore } from '../../stores/ui'
 import PlaygroundSessions from './PlaygroundSessions.vue'
 import PlaygroundChat from './PlaygroundChat.vue'
-import PlaygroundMarket from './PlaygroundMarket.vue'
 import PlaygroundParams from './PlaygroundParams.vue'
 import SendToWhatsAppModal from './SendToWhatsAppModal.vue'
 
@@ -24,39 +23,16 @@ onMounted(() => pg.bindEvents())
       </div>
     </transition>
 
-    <!-- Center: chat / image / market, with tab toggle -->
+    <!-- Center: chat -->
     <div class="flex-1 min-w-0 h-full flex flex-col">
-      <!-- Tab bar -->
-      <div class="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-wa-border dark:border-wa-border-dark">
-        <button
-          @click="pg.pgTab = 'chat'"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-sm font-medium transition"
-          :class="pg.pgTab === 'chat'
-            ? 'bg-white dark:bg-[#0b141a] text-wa-green border border-b-white dark:border-b-[#0b141a] border-wa-border dark:border-wa-border-dark'
-            : 'text-wa-muted dark:text-wa-muted-dark hover:text-wa-text dark:hover:text-wa-text-dark'"
-        >
-          <MessageSquareText :size="16" /> Chat
-        </button>
-        <button
-          @click="pg.pgTab = 'market'"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-sm font-medium transition"
-          :class="pg.pgTab === 'market'
-            ? 'bg-white dark:bg-[#0b141a] text-wa-green border border-b-white dark:border-b-[#0b141a] border-wa-border dark:border-wa-border-dark'
-            : 'text-wa-muted dark:text-wa-muted-dark hover:text-wa-text dark:hover:text-wa-text-dark'"
-        >
-          <BarChart3 :size="16" /> Market
-        </button>
-      </div>
-
       <div class="flex-1 min-h-0">
-        <PlaygroundChat v-show="pg.pgTab === 'chat'" />
-        <PlaygroundMarket v-if="pg.pgTab === 'market'" />
+        <PlaygroundChat />
       </div>
     </div>
 
-    <!-- Right: parameters (collapsible — hidden for market) -->
+    <!-- Right: parameters (collapsible) -->
     <transition name="pg-slide-right">
-      <div v-show="!ui.pgRightCollapsed && pg.pgTab !== 'market'" class="w-[300px] shrink-0 h-full">
+      <div v-show="!ui.pgRightCollapsed" class="w-[300px] shrink-0 h-full">
         <PlaygroundParams />
       </div>
     </transition>

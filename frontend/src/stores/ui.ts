@@ -3,13 +3,11 @@ import { ref } from 'vue'
 import type { Message } from '../types'
 
 export const useUIStore = defineStore('ui', () => {
-  const showSearch = ref(false)
   const showNewChat = ref(false)
   const showGroupInfo = ref(false)
   const showProfile = ref(false)
-  const showStarred = ref(false)
   const showAISettings = ref(false)
-  const showCSBotSettings = ref(false)
+  const showChannels = ref(false)
   const showForward = ref<Message | null>(null)
   const showChatMenu = ref<{ chatId: string; x: number; y: number } | null>(null)
 
@@ -24,13 +22,11 @@ export const useUIStore = defineStore('ui', () => {
   const waListCollapsed = ref(false)
 
   return {
-    showSearch,
     showNewChat,
     showGroupInfo,
     showProfile,
-    showStarred,
     showAISettings,
-    showCSBotSettings,
+    showChannels,
     showForward,
     showChatMenu,
     showPlayground,

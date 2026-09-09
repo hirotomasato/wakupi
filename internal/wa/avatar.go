@@ -15,10 +15,17 @@ import (
 )
 
 func (m *Manager) ensureAvatar(s *Session, jid types.JID, isGroup bool) {
-	if jid.Server == types.BroadcastServer {
+	if jid.Server == types.BroadcastServer || jid.Server == types.NewsletterServer {
 		return
 	}
-	key := s.ID + "::" + jid.String()
+	// Resolve LID → PN so GetProfilePictureInfo works (it needs the PN JID).
+	lookup := jid
+	if jid.Server == types.HiddenUserServer {
+		if pn, err := s.Client.Store.LIDs.GetPNForLID(context.Background(), jid); err == nil && !pn.IsEmpty() {
+			lookup = pn
+		}
+	}
+	key := s.ID + "::" + lookup.String()
 	m.avatarMu.Lock()
 	if m.avatarReq[key] {
 		m.avatarMu.Unlock()
@@ -44,7 +51,7 @@ func (m *Manager) ensureAvatar(s *Session, jid types.JID, isGroup bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	info, err := s.Client.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{Preview: true})
+	info, err := s.Client.GetProfilePictureInfo(ctx, lookup, &whatsmeow.GetProfilePictureParams{Preview: true})
 	if err != nil || info == nil || info.URL == "" {
 		return
 	}
@@ -90,44 +97,12 @@ type httpError struct{ Status int }
 
 func (e *httpError) Error() string { return http.StatusText(e.Status) }
 
-// seedChatsFromContacts pulls saved contacts and joined groups from whatsmeow's
-// internal store and registers them as chats so the chat list isn't empty
-// even before any new message arrives or HistorySync fires.
+// seedChatsFromContacts pulls joined groups from whatsmeow's internal store
+// and registers them as chats. Contacts are NOT seeded — they arrive via
+// history sync, which avoids cluttering the list with every phonebook entry.
 func (m *Manager) seedChatsFromContacts(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	contacts, err := s.Client.Store.Contacts.GetAllContacts(ctx)
-	if err == nil {
-		for jid, c := range contacts {
-			if jid.Server != types.DefaultUserServer {
-				continue
-			}
-			name := c.FullName
-			if name == "" {
-				name = c.PushName
-			}
-			if name == "" {
-				name = c.BusinessName
-			}
-			if name == "" {
-				continue
-			}
-			ci := &ChatInfo{
-				AccountID:   s.ID,
-				JID:         jid.String(),
-				Name:        name,
-				IsGroup:     false,
-				LastMessage: "",
-				LastTime:    0,
-			}
-			_ = m.store.UpsertChat(context.Background(), ci)
-			avatarPath, _ := m.store.GetAvatarPath(context.Background(), s.ID, jid.String())
-			ci.AvatarURL = avatarToURL(avatarPath)
-			ci.ID = ci.JID
-			go m.ensureAvatar(s, jid, false)
-		}
-	}
 
 	groups, err := s.Client.GetJoinedGroups(ctx)
 	if err == nil {

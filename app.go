@@ -12,13 +12,8 @@ import (
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
-	"google.golang.org/protobuf/proto"
 
 	"wakupi/internal/ai"
-	"wakupi/internal/cs"
-	"wakupi/internal/market"
 	"wakupi/internal/wa"
 )
 
@@ -26,7 +21,6 @@ type App struct {
 	ctx context.Context
 	wa  *wa.Manager
 	ai  *ai.Service
-	cs  *cs.Bot
 	imageGen *ai.Service
 
 	aiStreamMu     sync.Mutex
@@ -51,22 +45,6 @@ func (a *App) startup(ctx context.Context) {
 
 	a.ai = ai.New(a.loadAIConfig())
 	a.imageGen = ai.New(a.loadImageGenConfig())
-	a.cs = cs.New(a.loadCSBotConfig())
-
-	// Wire CS Bot hook into the WhatsApp manager so every incoming
-	// text message is forwarded to the bot for auto-reply.
-	a.wa.SetCSBotHook(func(s *wa.Session, text string, chatJID types.JID, pushName string) {
-		a.cs.HandleMessage(a.ctx, cs.MessageContext{
-			ChatJID:  chatJID,
-			Text:     text,
-			PushName: pushName,
-		}, func(ctx context.Context, jid types.JID, reply string) error {
-			_, err := s.Client.SendMessage(ctx, jid, &waE2E.Message{
-				Conversation: proto.String(reply),
-			})
-			return err
-		})
-	})
 
 	if err := mgr.LoadExisting(ctx); err != nil {
 		runtime.LogErrorf(ctx, "load existing sessions: %v", err)
@@ -158,29 +136,6 @@ func (a *App) BlockChat(sessionID, jid string, blocked bool) error {
 	return a.wa.BlockChat(a.ctx, sessionID, jid, blocked)
 }
 
-// === Star + Search ===
-
-func (a *App) StarMessage(sessionID, jid, messageID string, starred bool) error {
-	if a.wa == nil {
-		return fmt.Errorf("wa manager not ready")
-	}
-	return a.wa.StarMessage(a.ctx, sessionID, jid, messageID, starred)
-}
-
-func (a *App) ListStarred(sessionID string, limit int) ([]wa.MessageInfo, error) {
-	if a.wa == nil {
-		return nil, fmt.Errorf("wa manager not ready")
-	}
-	return a.wa.ListStarred(a.ctx, sessionID, limit)
-}
-
-func (a *App) SearchMessages(sessionID, query string, limit int) ([]wa.MessageInfo, error) {
-	if a.wa == nil {
-		return nil, fmt.Errorf("wa manager not ready")
-	}
-	return a.wa.SearchMessages(a.ctx, sessionID, query, limit)
-}
-
 // === Forward ===
 
 func (a *App) ForwardMessage(sessionID, fromChatJID, msgID string, toJIDs []string) error {
@@ -227,6 +182,50 @@ func (a *App) SetGroupName(sessionID, jid, name string) error {
 		return fmt.Errorf("wa manager not ready")
 	}
 	return a.wa.SetGroupName(a.ctx, sessionID, jid, name)
+}
+
+// === Channel ===
+
+func (a *App) GetSubscribedChannels(sessionID string) ([]wa.ChannelInfo, error) {
+	if a.wa == nil {
+		return nil, fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.GetSubscribedChannels(a.ctx, sessionID)
+}
+
+func (a *App) GetChannelInfo(sessionID, jid string) (*wa.ChannelInfo, error) {
+	if a.wa == nil {
+		return nil, fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.GetChannelInfo(a.ctx, sessionID, jid)
+}
+
+func (a *App) GetChannelInfoByInvite(sessionID, key string) (*wa.ChannelInfo, error) {
+	if a.wa == nil {
+		return nil, fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.GetChannelInfoByInvite(a.ctx, sessionID, key)
+}
+
+func (a *App) FollowChannel(sessionID, jid string) error {
+	if a.wa == nil {
+		return fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.FollowChannel(a.ctx, sessionID, jid)
+}
+
+func (a *App) UnfollowChannel(sessionID, jid string) error {
+	if a.wa == nil {
+		return fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.UnfollowChannel(a.ctx, sessionID, jid)
+}
+
+func (a *App) LoadChannelMessages(sessionID, jid string, count int) ([]wa.MessageInfo, error) {
+	if a.wa == nil {
+		return nil, fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.LoadChannelMessages(a.ctx, sessionID, jid, count)
 }
 
 // === Profile ===
@@ -364,90 +363,6 @@ func (a *App) AIGenerateImage(prompt string, opts ai.ImageOptions) ([]ai.ImageRe
 	return a.imageGen.GenerateImage(a.ctx, prompt, opts)
 }
 
-func (a *App) AIGetGamAPIModels() ([]string, error) {
-	if a.imageGen == nil {
-		return nil, fmt.Errorf("Image Gen not ready")
-	}
-	return a.imageGen.ListGamAPIModels(a.ctx)
-}
-
-func (a *App) AIGetGamAPIStyles() (map[string]string, error) {
-	if a.imageGen == nil {
-		return nil, fmt.Errorf("Image Gen not ready")
-	}
-	return a.imageGen.ListGamAPIStyles(a.ctx)
-}
-
-func (a *App) AIGetGamAPIRatios() (map[string]string, error) {
-	if a.imageGen == nil {
-		return nil, fmt.Errorf("Image Gen not ready")
-	}
-	return a.imageGen.ListGamAPIAspectRatios(a.ctx)
-}
-
-// === CS Bot ===
-
-func (a *App) loadCSBotConfig() cs.CSConfig {
-	if a.wa == nil {
-		return cs.CSConfig{}
-	}
-	raw, _ := a.wa.GetAppSetting(a.ctx, "csbot_config")
-	var cfg cs.CSConfig
-	if raw != "" {
-		_ = json.Unmarshal([]byte(raw), &cfg)
-	}
-	if cfg.SystemPrompt == "" {
-		cfg.SystemPrompt = cs.DefaultSystemPrompt
-	}
-	return cfg
-}
-
-func (a *App) resolveCSBotKey(cfg cs.CSConfig) cs.CSConfig {
-	if cfg.APIKey == "" || strings.HasPrefix(cfg.APIKey, "*") {
-		cfg.APIKey = a.loadCSBotConfig().APIKey
-	}
-	return cfg
-}
-
-func (a *App) GetCSBotConfig() cs.CSConfig {
-	if a.cs == nil {
-		return cs.CSConfig{}
-	}
-	return a.cs.Config()
-}
-
-func (a *App) SetCSBotConfig(cfg cs.CSConfig) error {
-	if a.wa == nil || a.cs == nil {
-		return fmt.Errorf("not ready")
-	}
-	cfg = a.resolveCSBotKey(cfg)
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	a.cs.Update(cfg)
-	return a.wa.SetAppSetting(a.ctx, "csbot_config", string(data))
-}
-
-func (a *App) CSBotTestConnection(cfg cs.CSConfig) error {
-	cfg = a.resolveCSBotKey(cfg)
-	return cs.New(cfg).Ping(a.ctx)
-}
-
-// === Market Data ===
-
-func (a *App) MarketGetQuote(symbol string) (*market.Quote, error) {
-	return market.FetchQuote(symbol)
-}
-
-func (a *App) MarketGetQuotes(symbols []string) ([]market.Quote, error) {
-	return market.FetchMultiQuotes(symbols)
-}
-
-func (a *App) MarketGetChart(symbol, rng string) ([]market.OHLC, error) {
-	return market.FetchChart(symbol, rng)
-}
-
 // PlaygroundMessage mirrors ai.ChatMessage for Wails binding generation.
 type PlaygroundMessage struct {
 	Role    string `json:"role"`
@@ -533,6 +448,13 @@ func (a *App) StartLogin(name string) (string, error) {
 	return a.wa.StartLogin(a.ctx, name)
 }
 
+func (a *App) StartLoginWithPhone(name, phone string) (string, error) {
+	if a.wa == nil {
+		return "", fmt.Errorf("wa manager not ready")
+	}
+	return a.wa.StartLoginWithPhone(a.ctx, name, phone)
+}
+
 func (a *App) Logout(sessionID string) error {
 	if a.wa == nil {
 		return fmt.Errorf("wa manager not ready")
@@ -607,20 +529,6 @@ func (a *App) ReactMessage(sessionID, jid, messageID, sender, emoji string) erro
 		return fmt.Errorf("wa manager not ready")
 	}
 	return a.wa.ReactMessage(a.ctx, sessionID, jid, messageID, sender, emoji)
-}
-
-func (a *App) PostStatusText(sessionID, text string) (string, error) {
-	if a.wa == nil {
-		return "", fmt.Errorf("wa manager not ready")
-	}
-	return a.wa.PostStatusText(a.ctx, sessionID, text)
-}
-
-func (a *App) PostStatusImage(sessionID, filePath, caption string) (string, error) {
-	if a.wa == nil {
-		return "", fmt.Errorf("wa manager not ready")
-	}
-	return a.wa.PostStatusImage(a.ctx, sessionID, filePath, caption)
 }
 
 func (a *App) Notify(title, body string) {

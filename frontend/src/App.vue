@@ -5,34 +5,25 @@ import ChatList from './components/ChatList.vue'
 import ChatArea from './components/ChatArea.vue'
 import LoginModal from './components/LoginModal.vue'
 import MediaPreview from './components/MediaPreview.vue'
-import StatusPanel from './components/StatusPanel.vue'
-import StatusViewer from './components/StatusViewer.vue'
-import StatusComposer from './components/StatusComposer.vue'
 import SettingsModal from './components/SettingsModal.vue'
-import SearchModal from './components/SearchModal.vue'
 import NewChatModal from './components/NewChatModal.vue'
 import ForwardModal from './components/ForwardModal.vue'
 import GroupInfoPanel from './components/GroupInfoPanel.vue'
 import ProfileEditor from './components/ProfileEditor.vue'
-import StarredPanel from './components/StarredPanel.vue'
 import AISettingsModal from './components/AISettingsModal.vue'
-import CSBotSettingsModal from './components/CSBotSettingsModal.vue'
 import ChatContextMenu from './components/ChatContextMenu.vue'
+import ChannelsModal from './components/ChannelsModal.vue'
 import PlaygroundView from './components/playground/PlaygroundView.vue'
 import ImageGenView from './components/ImageGenView.vue'
 import { useChatStore } from './stores/chat'
-import { useStatusStore } from './stores/status'
 import { useSettingsStore } from './stores/settings'
 import { useAIStore } from './stores/ai'
-import { useCSBotStore } from './stores/csbot'
 import { useUIStore } from './stores/ui'
 import { usePlaygroundStore } from './stores/playground'
 
 const chat = useChatStore()
-const status = useStatusStore()
 const settings = useSettingsStore()
 const ai = useAIStore()
-const csbot = useCSBotStore()
 const ui = useUIStore()
 const pg = usePlaygroundStore()
 const showSettings = ref(false)
@@ -52,13 +43,10 @@ function tryNotify(title: string, body: string) {
 
 onMounted(async () => {
   chat.bindEvents()
-  status.bindEvents()
   pg.bindEvents()
   await chat.refreshSessions()
   await ai.load()
   if (ai.config.enabled) ai.testConnection(ai.config).catch(() => {})
-  await csbot.load()
-  if (csbot.config.enabled) csbot.testConnection(csbot.config).catch(() => {})
 
   if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {})
@@ -91,8 +79,7 @@ watch(
     <ImageGenView v-if="ui.showImageGen" />
     <PlaygroundView v-else-if="ui.showPlayground" />
     <template v-else-if="chat.activeAccountId">
-      <StatusPanel v-if="status.showStatusPanel" />
-      <ChatList v-else-if="!ui.waListCollapsed" />
+      <ChatList v-if="!ui.waListCollapsed" />
       <ChatArea />
     </template>
     <div v-else class="flex-1 flex items-center justify-center text-wa-muted">
@@ -109,17 +96,13 @@ watch(
 
     <LoginModal v-if="chat.showLogin" />
     <MediaPreview />
-    <StatusViewer />
-    <StatusComposer v-if="status.showComposer" />
     <SettingsModal :open="showSettings" @close="showSettings = false" />
-    <SearchModal />
     <NewChatModal />
     <ForwardModal />
     <GroupInfoPanel />
     <ProfileEditor />
-    <StarredPanel />
     <AISettingsModal />
-    <CSBotSettingsModal />
     <ChatContextMenu />
+    <ChannelsModal />
   </div>
 </template>

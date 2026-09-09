@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { GetAIConfig, SetAIConfig, AISuggestReplies, AISummarize, AICompose, AITestConnection, AIListModels, AIGenerateImage, AIGetGamAPIModels, AIGetGamAPIStyles, AIGetGamAPIRatios } from '../../wailsjs/go/main/App'
+import { GetAIConfig, SetAIConfig, AISuggestReplies, AISummarize, AICompose, AITestConnection, AIListModels, AIGenerateImage } from '../../wailsjs/go/main/App'
 
 export interface AIConfig {
-  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'gamapi' | ''
+  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | ''
   apiKey: string
   baseUrl: string
   model: string
@@ -25,8 +25,6 @@ export interface ImageResult {
 export interface ImageOptions {
   model?: string
   size?: string
-  style?: string
-  aspectRatio?: string
   count?: number
 }
 
@@ -134,16 +132,6 @@ export const useAIStore = defineStore('ai', () => {
     }
   }
 
-  async function getGamAPIModels(): Promise<string[]> {
-    try { return (await AIGetGamAPIModels()) || [] } catch { return [] }
-  }
-  async function getGamAPIStyles(): Promise<Record<string, string>> {
-    try { return (await AIGetGamAPIStyles()) || {} } catch { return {} }
-  }
-  async function getGamAPIRatios(): Promise<Record<string, string>> {
-    try { return (await AIGetGamAPIRatios()) || {} } catch { return {} }
-  }
-
   return {
     config,
     loaded,
@@ -163,8 +151,5 @@ export const useAIStore = defineStore('ai', () => {
     compose,
     generating,
     generateImage,
-    getGamAPIModels,
-    getGamAPIStyles,
-    getGamAPIRatios,
   }
 })

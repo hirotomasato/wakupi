@@ -5,9 +5,6 @@ import {
   SetImageGenConfig,
   ImageGenTestConnection,
   AIGenerateImage,
-  AIGetGamAPIModels,
-  AIGetGamAPIStyles,
-  AIGetGamAPIRatios,
 } from '../../wailsjs/go/main/App'
 
 export type ConnStatus = 'off' | 'unknown' | 'ok' | 'error'
@@ -32,8 +29,6 @@ export interface ImageResult {
 export interface ImageOptions {
   model?: string
   size?: string
-  style?: string
-  aspectRatio?: string
   count?: number
 }
 
@@ -59,16 +54,8 @@ export const useImageGenStore = defineStore('imagegen', () => {
 
   // Image parameters
   const imgModel = ref('imagen-3-flash')
-  const imgStyle = ref('illustration')
-  const imgRatio = ref('square')
   const imgSize = ref('1024x1024')
 
-  // GamAPI cached data
-  const gamapiModels = ref<string[]>([])
-  const gamapiStyles = ref<Record<string, string>>({})
-  const gamapiRatios = ref<Record<string, string>>({})
-
-  const isGamAPI = computed(() => config.value.provider === 'gamapi')
   const canGenerate = computed(() => prompt.value.trim().length > 0 && !generating.value && config.value.enabled)
 
   // ===== Config management =====
@@ -114,10 +101,6 @@ export const useImageGenStore = defineStore('imagegen', () => {
     images.value = []
     try {
       const opts: ImageOptions = { model: imgModel.value }
-      if (isGamAPI.value) {
-        opts.style = imgStyle.value
-        opts.aspectRatio = imgRatio.value
-      }
       if (config.value.provider === 'openai') {
         opts.size = imgSize.value
       }
@@ -128,17 +111,6 @@ export const useImageGenStore = defineStore('imagegen', () => {
     } finally {
       generating.value = false
     }
-  }
-
-  async function loadGamAPIData() {
-    const [m, s, r] = await Promise.all([
-      AIGetGamAPIModels().catch(() => [] as string[]),
-      AIGetGamAPIStyles().catch(() => ({} as Record<string, string>)),
-      AIGetGamAPIRatios().catch(() => ({} as Record<string, string>)),
-    ])
-    gamapiModels.value = m
-    gamapiStyles.value = s
-    gamapiRatios.value = r
   }
 
   return {
@@ -152,18 +124,11 @@ export const useImageGenStore = defineStore('imagegen', () => {
     generating,
     error,
     imgModel,
-    imgStyle,
-    imgRatio,
     imgSize,
-    isGamAPI,
     canGenerate,
-    gamapiModels,
-    gamapiStyles,
-    gamapiRatios,
     loadConfig,
     saveConfig,
     testConnection,
     generate,
-    loadGamAPIData,
   }
 })

@@ -102,8 +102,8 @@ jobs:
             ### What's New
             - WhatsApp Multi-Account client
             - AI Assistant (OpenAI, Claude, Gemini, Ollama)
+            - AI Image Generation (DALL-E, Gemini Imagen)
             - Dynamic QRIS Generator & Invoice
-            - Desktop Controller with WhatsApp remote commands
             - Modern UI with light/dark mode
           files: wakupi-*.tar.gz, wakupi-*.zip
           draft: false

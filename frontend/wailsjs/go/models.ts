@@ -23,8 +23,6 @@ export namespace ai {
 	export class ImageOptions {
 	    model: string;
 	    size: string;
-	    style: string;
-	    aspectRatio: string;
 	    count: number;
 	
 	    static createFrom(source: any = {}) {
@@ -35,8 +33,6 @@ export namespace ai {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.model = source["model"];
 	        this.size = source["size"];
-	        this.style = source["style"];
-	        this.aspectRatio = source["aspectRatio"];
 	        this.count = source["count"];
 	    }
 	}
@@ -60,37 +56,6 @@ export namespace ai {
 	        this.height = source["height"];
 	        this.model = source["model"];
 	        this.b64Json = source["b64Json"];
-	    }
-	}
-
-}
-
-export namespace cs {
-	
-	export class CSConfig {
-	    provider: string;
-	    apiKey: string;
-	    baseUrl: string;
-	    model: string;
-	    enabled: boolean;
-	    systemPrompt: string;
-	    greetingMsg: string;
-	    useGreeting: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new CSConfig(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.provider = source["provider"];
-	        this.apiKey = source["apiKey"];
-	        this.baseUrl = source["baseUrl"];
-	        this.model = source["model"];
-	        this.enabled = source["enabled"];
-	        this.systemPrompt = source["systemPrompt"];
-	        this.greetingMsg = source["greetingMsg"];
-	        this.useGreeting = source["useGreeting"];
 	    }
 	}
 
@@ -147,73 +112,42 @@ export namespace main {
 
 }
 
-export namespace market {
-	
-	export class OHLC {
-	    time: number;
-	    open: number;
-	    high: number;
-	    low: number;
-	    close: number;
-	    volume: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new OHLC(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.time = source["time"];
-	        this.open = source["open"];
-	        this.high = source["high"];
-	        this.low = source["low"];
-	        this.close = source["close"];
-	        this.volume = source["volume"];
-	    }
-	}
-	export class Quote {
-	    symbol: string;
-	    name: string;
-	    price: number;
-	    change: number;
-	    changePercent: number;
-	    high: number;
-	    low: number;
-	    open: number;
-	    volume: number;
-	    currency: string;
-	    exchange: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Quote(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.symbol = source["symbol"];
-	        this.name = source["name"];
-	        this.price = source["price"];
-	        this.change = source["change"];
-	        this.changePercent = source["changePercent"];
-	        this.high = source["high"];
-	        this.low = source["low"];
-	        this.open = source["open"];
-	        this.volume = source["volume"];
-	        this.currency = source["currency"];
-	        this.exchange = source["exchange"];
-	    }
-	}
-
-}
-
 export namespace wa {
 	
+	export class ChannelInfo {
+	    jid: string;
+	    name: string;
+	    description: string;
+	    subscriberCount: number;
+	    avatarUrl?: string;
+	    isSubscribed: boolean;
+	    role?: string;
+	    inviteCode?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jid = source["jid"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.subscriberCount = source["subscriberCount"];
+	        this.avatarUrl = source["avatarUrl"];
+	        this.isSubscribed = source["isSubscribed"];
+	        this.role = source["role"];
+	        this.inviteCode = source["inviteCode"];
+	    }
+	}
 	export class ChatInfo {
 	    id: string;
 	    accountId: string;
 	    jid: string;
 	    name: string;
 	    isGroup: boolean;
+	    isChannel: boolean;
+	    channelRole?: string;
 	    lastMessage: string;
 	    lastTime: number;
 	    avatarUrl?: string;
@@ -233,6 +167,8 @@ export namespace wa {
 	        this.jid = source["jid"];
 	        this.name = source["name"];
 	        this.isGroup = source["isGroup"];
+	        this.isChannel = source["isChannel"];
+	        this.channelRole = source["channelRole"];
 	        this.lastMessage = source["lastMessage"];
 	        this.lastTime = source["lastTime"];
 	        this.avatarUrl = source["avatarUrl"];
@@ -331,6 +267,7 @@ export namespace wa {
 	    timestamp: number;
 	    fromMe: boolean;
 	    isGroup: boolean;
+	    isChannel: boolean;
 	    pushName: string;
 	    mediaType?: string;
 	    mediaUrl?: string;
@@ -361,6 +298,7 @@ export namespace wa {
 	        this.timestamp = source["timestamp"];
 	        this.fromMe = source["fromMe"];
 	        this.isGroup = source["isGroup"];
+	        this.isChannel = source["isChannel"];
 	        this.pushName = source["pushName"];
 	        this.mediaType = source["mediaType"];
 	        this.mediaUrl = source["mediaUrl"];

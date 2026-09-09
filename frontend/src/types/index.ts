@@ -24,10 +24,23 @@ export interface Chat {
   mutedUntil?: number
   blocked?: boolean
   isGroup?: boolean
+  isChannel?: boolean
+  role?: string
   _sortKey?: number
 }
 
 export type MediaType = '' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
+
+export interface ChannelInfo {
+  jid: string
+  name: string
+  description: string
+  subscriberCount: number
+  avatarUrl?: string
+  isSubscribed: boolean
+  role?: string
+  inviteCode?: string
+}
 
 export interface Message {
   id: string

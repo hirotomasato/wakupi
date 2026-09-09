@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Check, CheckCheck, Reply, Trash2, Download, FileText, Play, Pause, Forward, Star } from '@lucide/vue'
+import { Check, CheckCheck, Reply, Trash2, Download, FileText, Play, Pause, Forward } from '@lucide/vue'
 import type { Message } from '../types'
 import { useChatStore } from '../stores/chat'
 import { useUIStore } from '../stores/ui'
@@ -71,10 +71,6 @@ function del() {
 
 function forward() {
   ui.showForward = props.msg
-}
-
-function star() {
-  store.toggleStar(props.msg)
 }
 
 function preview() {
@@ -258,7 +254,6 @@ async function download() {
       <button @click="react('😂')" class="w-6 h-6 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm">😂</button>
       <button @click="reply" title="Balas" class="w-6 h-6 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center text-wa-muted dark:text-wa-muted-dark"><Reply :size="14" /></button>
       <button @click="forward" title="Teruskan" class="w-6 h-6 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center text-wa-muted dark:text-wa-muted-dark"><Forward :size="14" /></button>
-      <button @click="star" title="Bintangi" class="w-6 h-6 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center" :class="(msg as any).starred ? 'text-amber-500' : 'text-wa-muted dark:text-wa-muted-dark'"><Star :size="14" /></button>
       <button @click="del" title="Hapus" class="w-6 h-6 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center text-wa-muted dark:text-wa-muted-dark"><Trash2 :size="14" /></button>
     </div>
   </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, MessageSquarePlus, MoreVertical, Filter, Users, Pin, BellOff, Archive, Image as ImageIcon, Video, Mic, FileText, Check, CheckCheck, PanelLeftClose } from '@lucide/vue'
+import { MessageSquarePlus, MoreVertical, Filter, Users, Pin, BellOff, Archive, Image as ImageIcon, Video, Mic, FileText, Check, CheckCheck, PanelLeftClose, Megaphone } from '@lucide/vue'
 import { useChatStore } from '../stores/chat'
 import { useUIStore } from '../stores/ui'
 
@@ -44,9 +44,6 @@ function onContextMenu(e: MouseEvent, chatId: string) {
         {{ showArchived ? 'Arsip' : (store.activeAccount?.name || 'WhatsApp') }}
       </h1>
       <div class="flex items-center gap-1 text-wa-muted dark:text-wa-muted-dark">
-        <button @click="ui.showSearch = true" class="w-9 h-9 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center" title="Cari pesan">
-          <Search :size="18" />
-        </button>
         <button @click="ui.showNewChat = true" class="w-9 h-9 rounded-full hover:bg-wa-hover dark:hover:bg-wa-hover-dark flex items-center justify-center" title="Chat baru">
           <MessageSquarePlus :size="20" />
         </button>
@@ -57,9 +54,6 @@ function onContextMenu(e: MouseEvent, chatId: string) {
           <div v-if="showMenu" class="absolute right-0 top-10 w-52 bg-white dark:bg-wa-panel-dark shadow-xl rounded-lg py-1 z-20 border border-wa-border dark:border-wa-border-dark">
             <button @click="showArchived = !showArchived; showMenu = false" class="w-full text-left px-4 py-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm flex items-center gap-2">
               <Archive :size="14" /> {{ showArchived ? 'Kembali ke chat' : 'Arsip' }}
-            </button>
-            <button @click="ui.showStarred = true; showMenu = false" class="w-full text-left px-4 py-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm">
-              ⭐ Pesan berbintang
             </button>
             <button @click="ui.showProfile = true; showMenu = false" class="w-full text-left px-4 py-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark text-sm">
               Profil saya
@@ -104,6 +98,7 @@ function onContextMenu(e: MouseEvent, chatId: string) {
         <div class="w-12 h-12 rounded-full bg-slate-400 text-white flex items-center justify-center font-semibold shrink-0 overflow-hidden">
           <img v-if="chat.avatarUrl" :src="chat.avatarUrl" class="w-full h-full object-cover" />
           <Users v-else-if="chat.isGroup" :size="22" />
+          <Megaphone v-else-if="chat.isChannel" :size="22" />
           <span v-else>{{ initials(chat.name) }}</span>
         </div>
         <div class="flex-1 min-w-0">

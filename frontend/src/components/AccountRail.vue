@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, MessageCircle, Circle, Settings as SettingsIcon, Sparkles, Headset, Image, User, Star, Search, Archive, Bot, TrendingUp } from '@lucide/vue'
+import { Plus, MessageCircle, Settings as SettingsIcon, Sparkles, Image, User, TrendingUp, Megaphone } from '@lucide/vue'
 import { useChatStore } from '../stores/chat'
-import { useStatusStore } from '../stores/status'
 import { useUIStore } from '../stores/ui'
 import { useAIStore } from '../stores/ai'
-import { useCSBotStore } from '../stores/csbot'
 import QrisDashboard from './QrisDashboard.vue'
 
 const store = useChatStore()
-const status = useStatusStore()
 const ui = useUIStore()
 const ai = useAIStore()
-const cs = useCSBotStore()
 
 const emit = defineEmits<{ (e: 'open-settings'): void }>()
 
@@ -33,25 +29,11 @@ const initials = (name: string) =>
 
 const accounts = computed(() => store.accounts)
 
-const hasNewStatus = computed(() => status.grouped.length > 0)
-
 const aiDotColor = computed(() => {
   if (!ai.config.enabled) return 'bg-gray-400'
   switch (ai.connStatus) {
     case 'ok':
       return 'bg-emerald-500'
-    case 'error':
-      return 'bg-red-500'
-    default:
-      return 'bg-amber-400'
-  }
-})
-
-const csDotColor = computed(() => {
-  if (!cs.config.enabled) return 'bg-gray-400'
-  switch (cs.connStatus) {
-    case 'ok':
-      return 'bg-blue-500'
     case 'error':
       return 'bg-red-500'
     default:
@@ -65,7 +47,7 @@ const csDotColor = computed(() => {
     <button
       v-for="acc in accounts"
       :key="acc.id"
-      @click="store.selectAccount(acc.id); status.showStatusPanel = false"
+      @click="store.selectAccount(acc.id)"
       class="relative w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold text-sm transition-all"
       :class="[
         store.activeAccountId === acc.id
@@ -92,25 +74,12 @@ const csDotColor = computed(() => {
     <div class="flex-1" />
 
     <button
-      @click="status.showStatusPanel = false; ui.showPlayground = false; ui.showImageGen = false"
+      @click="ui.showPlayground = false; ui.showImageGen = false"
       class="w-11 h-11 rounded-full flex items-center justify-center transition"
-      :class="!status.showStatusPanel && !ui.showPlayground ? 'bg-wa-green/10 text-wa-green' : 'text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark'"
+      :class="!ui.showPlayground ? 'bg-wa-green/10 text-wa-green' : 'text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark'"
       title="Chat"
     >
       <MessageCircle :size="20" />
-    </button>
-
-    <button
-      @click="status.showStatusPanel = true; ui.showPlayground = false; ui.showImageGen = false"
-      class="relative w-11 h-11 rounded-full flex items-center justify-center transition"
-      :class="status.showStatusPanel && !ui.showPlayground ? 'bg-wa-green/10 text-wa-green' : 'text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark'"
-      title="Status"
-    >
-      <Circle :size="20" />
-      <span
-        v-if="hasNewStatus"
-        class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-wa-green"
-      />
     </button>
 
     <button
@@ -132,22 +101,6 @@ const csDotColor = computed(() => {
     </button>
 
     <button
-      @click="ui.showSearch = true"
-      class="w-11 h-11 rounded-full flex items-center justify-center text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark transition"
-      title="Cari"
-    >
-      <Search :size="20" />
-    </button>
-
-    <button
-      @click="ui.showStarred = true"
-      class="w-11 h-11 rounded-full flex items-center justify-center text-wa-muted dark:text-wa-muted-dark hover:bg-wa-hover dark:hover:bg-wa-hover-dark transition"
-      title="Pesan berbintang"
-    >
-      <Star :size="20" />
-    </button>
-
-    <button
       @click="ui.showAISettings = true"
       class="relative w-11 h-11 rounded-full flex items-center justify-center text-violet-500 hover:bg-violet-500/10 transition"
       title="AI Assistant"
@@ -160,23 +113,19 @@ const csDotColor = computed(() => {
     </button>
 
     <button
-      @click="ui.showCSBotSettings = true"
-      class="relative w-11 h-11 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition"
-      title="CS Bot"
-    >
-      <Headset :size="20" />
-      <span
-        class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-wa-panel dark:border-[#111b21]"
-        :class="csDotColor"
-      />
-    </button>
-
-    <button
       @click="showQrisDashboard = true"
       class="w-11 h-11 rounded-full flex items-center justify-center text-green-500 hover:bg-green-500/10 transition"
       title="Dashboard QRIS"
     >
       <TrendingUp :size="20" />
+    </button>
+
+    <button
+      @click="ui.showChannels = true"
+      class="w-11 h-11 rounded-full flex items-center justify-center text-amber-500 hover:bg-amber-500/10 transition"
+      title="Saluran"
+    >
+      <Megaphone :size="20" />
     </button>
 
     <button

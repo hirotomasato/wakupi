@@ -19,7 +19,6 @@ const (
 	ProviderAnthropic Provider = "anthropic"
 	ProviderGemini    Provider = "gemini"
 	ProviderOllama    Provider = "ollama"
-	ProviderGamAPI    Provider = "gamapi"
 )
 
 // ImageResult holds a single generated image.
@@ -34,11 +33,9 @@ type ImageResult struct {
 
 // ImageOptions carry per-request overrides for image generation.
 type ImageOptions struct {
-	Model       string `json:"model"`
-	Size        string `json:"size"`
-	Style       string `json:"style"`
-	AspectRatio string `json:"aspectRatio"`
-	Count       int    `json:"count"`
+	Model string `json:"model"`
+	Size  string `json:"size"`
+	Count int    `json:"count"`
 }
 
 type Config struct {
@@ -93,25 +90,8 @@ func (s *Service) GenerateImage(ctx context.Context, prompt string, opts ImageOp
 		return s.generateOpenAIImage(ctx, prompt, opts)
 	case ProviderGemini:
 		return s.generateGeminiImage(ctx, prompt, opts)
-	case ProviderGamAPI:
-		return s.generateGamAPIImage(ctx, prompt, opts)
 	}
 	return nil, fmt.Errorf("provider %s does not support image generation", s.cfg.Provider)
-}
-
-// GamAPIImageSupport exposes GamAPI-specific endpoints for the frontend to query
-// models, styles and aspect ratios before generating.
-
-func (s *Service) ListGamAPIModels(ctx context.Context) ([]string, error) {
-	return s.listGamAPIModels(ctx)
-}
-
-func (s *Service) ListGamAPIStyles(ctx context.Context) (map[string]string, error) {
-	return s.listGamAPIStyles(ctx)
-}
-
-func (s *Service) ListGamAPIAspectRatios(ctx context.Context) (map[string]string, error) {
-	return s.listGamAPIAspectRatios(ctx)
 }
 
 // Chat is the unified prompt entrypoint. Returns a single completion string.
@@ -128,8 +108,6 @@ func (s *Service) Chat(ctx context.Context, system, user string) (string, error)
 		return s.callGemini(ctx, system, user)
 	case ProviderOllama:
 		return s.callOllama(ctx, system, user)
-	case ProviderGamAPI:
-		return "", fmt.Errorf("GamAPI hanya mendukung image generation — gunakan tab Image di Playground")
 	}
 	return "", fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }
@@ -187,8 +165,6 @@ func (s *Service) Ping(ctx context.Context) error {
 	case ProviderOllama:
 		_, err := s.callOllama(ctx, "Reply with OK.", "ping")
 		return err
-	case ProviderGamAPI:
-		return fmt.Errorf("GamAPI tidak mendukung chat — hanya image generation")
 	}
 	return fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }
@@ -204,8 +180,6 @@ func (s *Service) ListModels(ctx context.Context) ([]string, error) {
 		return s.listGeminiModels(ctx)
 	case ProviderOllama:
 		return s.listOllamaModels(ctx)
-	case ProviderGamAPI:
-		return s.ListGamAPIModels(ctx)
 	}
 	return nil, fmt.Errorf("unknown provider: %s", s.cfg.Provider)
 }

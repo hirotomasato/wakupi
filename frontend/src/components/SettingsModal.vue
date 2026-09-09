@@ -131,7 +131,7 @@ async function logoutAccount(id: string) {
           <div class="text-center space-y-3 p-4 rounded-lg bg-wa-panel dark:bg-wa-hover-dark">
             <div class="text-2xl font-bold text-wa-green">Wakupi</div>
             <p class="text-sm text-wa-muted dark:text-wa-muted-dark">
-              WhatsApp desktop client — AI, QRIS universal untuk bisnis & kontrol desktop.
+              WhatsApp desktop client — AI & QRIS universal untuk bisnis.
             </p>
             <div class="text-xs text-wa-muted dark:text-wa-muted-dark space-y-1">
               <p>Made with <Heart :size="12" class="inline text-red-500 fill-red-500" /> by <strong>Masanto</strong></p>

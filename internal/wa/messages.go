@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"mime"
 	"os"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 func (m *Manager) handleMessage(s *Session, e *events.Message) {
 	chatJID := e.Info.Chat
 	isGroup := chatJID.Server == types.GroupServer
+	isChannel := chatJID.Server == types.NewsletterServer
 	isStatus := chatJID == types.StatusBroadcastJID
 	displayName := m.resolveName(s, chatJID, e.Info.PushName)
 
@@ -56,32 +56,18 @@ func (m *Manager) handleMessage(s *Session, e *events.Message) {
 		Timestamp: e.Info.Timestamp.Unix(),
 		FromMe:    e.Info.IsFromMe,
 		IsGroup:   isGroup,
+		IsChannel: isChannel,
 		PushName:  e.Info.PushName,
 	}
 
 	enrichFromMessage(&mi, e.Message)
 
-	// CS Bot auto-reply hook — runs async, does not block the pipeline.
-	if m.csHook != nil && !e.Info.IsFromMe && !isStatus && mi.Text != "" {
-		go m.csHook(s, mi.Text, chatJID, displayName)
-	}
-
 	if mi.Text == "" && mi.MediaType == "" {
 		return
 	}
 
+	// Skip status broadcast messages — no UI for them.
 	if isStatus {
-		if mi.MediaType != "" {
-			go func(info *events.Message, base MessageInfo) {
-				path, err := m.downloadAndSave(s, info)
-				if err == nil && path != "" {
-					base.MediaURL = "/media/" + filepath.Base(path)
-				}
-				m.emit("wa:status", base)
-			}(e, mi)
-			return
-		}
-		m.emit("wa:status", mi)
 		return
 	}
 
@@ -92,14 +78,14 @@ func (m *Manager) handleMessage(s *Session, e *events.Message) {
 				base.MediaURL = "/media/" + filepath.Base(path)
 				_ = m.store.UpdateMessageMediaURL(context.Background(), s.ID, chatJID.String(), base.ID, base.MediaURL)
 				m.emit("wa:message", base)
-				m.persistChat(s, chatJID, displayName, isGroup, base.Text, base.Timestamp)
-				m.emitChatPreview(s, chatJID, displayName, isGroup, base.Text, base.Timestamp)
+				m.persistChat(s, chatJID, displayName, isGroup, isChannel, base.Text, base.Timestamp)
+				m.emitChatPreview(s, chatJID, displayName, isGroup, isChannel, base.Text, base.Timestamp)
 				return
 			}
 			_ = m.store.UpsertMessage(context.Background(), &base)
 			m.emit("wa:message", base)
-			m.persistChat(s, chatJID, displayName, isGroup, base.Text, base.Timestamp)
-			m.emitChatPreview(s, chatJID, displayName, isGroup, base.Text, base.Timestamp)
+			m.persistChat(s, chatJID, displayName, isGroup, isChannel, base.Text, base.Timestamp)
+			m.emitChatPreview(s, chatJID, displayName, isGroup, isChannel, base.Text, base.Timestamp)
 		}(e, mi)
 		_ = m.store.UpsertMessage(context.Background(), &mi)
 		return
@@ -107,25 +93,26 @@ func (m *Manager) handleMessage(s *Session, e *events.Message) {
 
 	_ = m.store.UpsertMessage(context.Background(), &mi)
 	m.emit("wa:message", mi)
-	m.persistChat(s, chatJID, displayName, isGroup, mi.Text, mi.Timestamp)
-	m.emitChatPreview(s, chatJID, displayName, isGroup, mi.Text, mi.Timestamp)
+	m.persistChat(s, chatJID, displayName, isGroup, isChannel, mi.Text, mi.Timestamp)
+	m.emitChatPreview(s, chatJID, displayName, isGroup, isChannel, mi.Text, mi.Timestamp)
 
 	go m.ensureAvatar(s, chatJID, isGroup)
 }
 
-func (m *Manager) persistChat(s *Session, chatJID types.JID, name string, isGroup bool, lastText string, ts int64) {
+func (m *Manager) persistChat(s *Session, chatJID types.JID, name string, isGroup, isChannel bool, lastText string, ts int64) {
 	ci := &ChatInfo{
 		AccountID:   s.ID,
 		JID:         chatJID.String(),
 		Name:        name,
 		IsGroup:     isGroup,
+		IsChannel:   isChannel,
 		LastMessage: lastText,
 		LastTime:    ts,
 	}
 	_ = m.store.UpsertChat(context.Background(), ci)
 }
 
-func (m *Manager) emitChatPreview(s *Session, chatJID types.JID, name string, isGroup bool, lastText string, ts int64) {
+func (m *Manager) emitChatPreview(s *Session, chatJID types.JID, name string, isGroup, isChannel bool, lastText string, ts int64) {
 	avatar, _ := m.store.GetAvatarPath(context.Background(), s.ID, chatJID.String())
 	ci := ChatInfo{
 		ID:          chatJID.String(),
@@ -133,6 +120,7 @@ func (m *Manager) emitChatPreview(s *Session, chatJID types.JID, name string, is
 		JID:         chatJID.String(),
 		Name:        name,
 		IsGroup:     isGroup,
+		IsChannel:   isChannel,
 		LastMessage: lastText,
 		LastTime:    ts,
 		AvatarURL:   avatarToURL(avatar),
@@ -492,5 +480,3 @@ func fillAccount(s *Session, mi *MessageInfo) {
 		mi.AccountID = s.ID
 	}
 }
-
-var _ = fmt.Sprintf
