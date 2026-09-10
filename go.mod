@@ -3,7 +3,7 @@ module wakupi
 go 1.26.2
 
 require (
-	github.com/hirotomasato/paygateme v0.0.0-00010101000000-000000000000
+	github.com/hirotomasato/paygateme v0.1.0
 	github.com/wailsapp/wails/v2 v2.12.0
 	go.mau.fi/whatsmeow v0.0.0-20260904121843-28bfe537ea6a
 	google.golang.org/protobuf v1.36.12
@@ -59,5 +59,3 @@ require (
 )
 
 // replace github.com/wailsapp/wails/v2 v2.12.0 => /home/masanto/go/pkg/mod
-
-replace github.com/hirotomasato/paygateme => /home/masanto/tool/paygateme
