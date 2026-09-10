@@ -37,7 +37,12 @@
 
 ### 💳 Universal QRIS Payments
 - Supports **all Indonesian QRIS providers** — ShopeePay, DANA, OVO, GoPay, LinkAja, BSI, etc.
+- **Shopee Merchant login** — OTP login (phone + password + OTP), auto session refresh, silent token renewal
 - Convert any static QRIS into dynamic with custom amounts
+- **Unique amount allocation** — every QR gets a distinct amount so payments can't cross-match
+- **Real-time settlement detection** — polls Shopee transaction feed, auto-marks paid/expired
+- **Auto-notification** — sends "Pembayaran Berhasil" to the WhatsApp chat when a payment settles
+- Invoice shows exact amount to pay + expiry time
 - Perfect for merchants, cashiers, online sellers, and small businesses
 - Send QRIS payment QR directly to customers via WhatsApp
 - Product catalog with prices for quick check-out
@@ -113,12 +118,13 @@ wails build
 | Layer | Technology |
 |-------|-----------|
 | **Desktop Shell** | [Wails v2](https://wails.io) |
-| **Backend** | Go 1.25 |
+| **Backend** | Go 1.26 |
 | **Frontend** | Vue 3 + TypeScript + Pinia |
 | **Styling** | Tailwind CSS |
 | **WhatsApp** | [whatsmeow](https://github.com/tulir/whatsmeow) |
 | **AI Chat** | OpenAI / Anthropic / Gemini / Ollama |
 | **AI Images** | OpenAI DALL-E / Gemini Imagen |
+| **QRIS** | [paygateme](https://github.com/hirotomasato/paygateme) — Shopee merchant SDK |
 | **Database** | SQLite |
 | **D-Bus** | godbus/v5 |
 | **QR Code** | qrcode + jsQR |
@@ -137,6 +143,9 @@ wakupi/
 │   │   ├── stream.go       #   SSE streaming for all providers
 │   │   └── image.go        #   Image gen: DALL-E, Imagen
 │   ├── cs/                 # Customer service bot
+│   ├── payment/            # QRIS: Shopee merchant payment
+│   │   ├── store.go        #   SQLite payment store
+│   │   └── manager.go      #   OTP login, settlement, QRIS
 │   └── wa/                 # WhatsApp manager
 │       ├── manager.go      #   Session & event routing
 │       ├── messages.go     #   Inbound message handling

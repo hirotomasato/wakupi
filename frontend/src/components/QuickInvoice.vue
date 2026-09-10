@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { X, Calculator, Send, Download, QrCode } from '@lucide/vue'
 import { useQrisStore } from '../stores/qris'
@@ -8,7 +8,7 @@ import { makeDynamicQRIS } from '../lib/qris'
 
 const emit = defineEmits<{
   close: []
-  sendToChat: [amount: number, qrDataUrl: string]
+  sendToChat: [payload: { amount: number; uniqueAmount: number; expiresAt: number; notes: string; qrDataUrl: string }]
 }>()
 
 const qrisStore = useQrisStore()
@@ -19,6 +19,33 @@ const notes = ref('')
 const generatedQrDataUrl = ref('')
 const isProcessing = ref(false)
 const error = ref('')
+const displayAmount = ref<number>(0)
+const displayUniqueAmount = ref<number>(0)
+const displayExpiresAt = ref<number>(0)
+const isBackendPayment = ref(false)
+const paymentId = ref('')
+const transactionId = ref('')
+
+// Auto-dismiss QR when payment is settled or expired.
+watch(
+  () => {
+    const txn = qrisStore.transactions.find((t) => t.id === transactionId.value)
+    return txn?.status
+  },
+  (status) => {
+    if (status === 'paid') {
+      error.value = ''
+      // Keep QR visible for a moment so user sees the success, then auto-close
+      setTimeout(() => emit('close'), 2000)
+    } else if (status === 'cancelled') {
+      error.value = 'QR sudah kadaluarsa / dibatalkan.'
+      setTimeout(() => {
+        error.value = ''
+        emit('close')
+      }, 2000)
+    }
+  }
+)
 
 async function generateQr() {
   if (!qrisStore.qrisString) {
@@ -34,24 +61,56 @@ async function generateQr() {
   error.value = ''
 
   try {
-    const newQrisString = makeDynamicQRIS(qrisStore.qrisString, amount.value)
+    let newQrisString: string
+    let uniqueAmount = amount.value
+    let expiresAt = 0
+    let backendId = ''
+
+    if (qrisStore.session.loggedIn) {
+      const result = await qrisStore.createPayment(amount.value, notes.value)
+      if (!result || !result.qrString) {
+        throw new Error('Backend returned no QRIS')
+      }
+      newQrisString = result.qrString
+      uniqueAmount = result.uniqueAmount
+      expiresAt = result.expiresAt
+      backendId = result.id
+      isBackendPayment.value = true
+      paymentId.value = result.id
+    } else {
+      newQrisString = makeDynamicQRIS(qrisStore.qrisString, amount.value)
+      isBackendPayment.value = false
+    }
+
+    displayAmount.value = amount.value
+    displayUniqueAmount.value = uniqueAmount
+    displayExpiresAt.value = expiresAt
+
     generatedQrDataUrl.value = await QRCode.toDataURL(newQrisString, {
       width: 260,
       margin: 2,
       errorCorrectionLevel: 'M',
     })
 
-    // Save transaction
-    qrisStore.addTransaction({
+    const txn = qrisStore.addTransaction({
+      paymentId: backendId || undefined,
       amount: amount.value,
+      uniqueAmount: uniqueAmount !== amount.value ? uniqueAmount : undefined,
+      expiresAt: expiresAt || undefined,
       qrDataUrl: generatedQrDataUrl.value,
       notes: notes.value,
     })
-  } catch (e: any) {
-    error.value = 'Gagal generate QR: ' + e.message
+    transactionId.value = txn.id
+  } catch (e: unknown) {
+    error.value = 'Gagal generate QR: ' + (e instanceof Error ? e.message : String(e))
   } finally {
     isProcessing.value = false
   }
+}
+
+function formatTime(ms: number): string {
+  if (!ms) return ''
+  return new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatRupiah(value: number): string {
@@ -72,7 +131,13 @@ function downloadQr() {
 
 function sendToChat() {
   if (generatedQrDataUrl.value && chatStore.activeChat) {
-    emit('sendToChat', amount.value, generatedQrDataUrl.value)
+    emit('sendToChat', {
+      amount: displayAmount.value,
+      uniqueAmount: displayUniqueAmount.value,
+      expiresAt: displayExpiresAt.value,
+      notes: notes.value,
+      qrDataUrl: generatedQrDataUrl.value,
+    })
   }
 }
 
@@ -143,7 +208,16 @@ const quickAmounts = [10000, 15000, 20000, 25000, 50000, 100000]
         <!-- Generated QR -->
         <div v-if="generatedQrDataUrl" class="text-center space-y-3">
           <img :src="generatedQrDataUrl" alt="QR Invoice" class="w-52 h-52 mx-auto rounded-lg" />
-          <div class="text-2xl font-bold text-wa-green">{{ formatRupiah(amount) }}</div>
+          <div v-if="isBackendPayment && displayUniqueAmount !== displayAmount" class="text-sm text-gray-500">
+            Bayar tepat: <span class="font-bold text-wa-green">{{ formatRupiah(displayUniqueAmount) }}</span>
+          </div>
+          <div v-else class="text-2xl font-bold text-wa-green">{{ formatRupiah(displayAmount) }}</div>
+          <div v-if="displayExpiresAt" class="text-xs text-amber-600">
+            ⏳ Berlaku sampai {{ formatTime(displayExpiresAt) }}
+          </div>
+          <div v-if="isBackendPayment" class="text-xs text-gray-400">
+            Status dipantau otomatis
+          </div>
           <div class="flex gap-2">
             <button
               @click="downloadQr"

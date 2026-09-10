@@ -1,5 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import {
+  GetPaymentSession,
+  RequestShopeeOtp,
+  VerifyShopeeOtp,
+  CompleteShopeeLogin,
+  LogoutPayment,
+  SetPaymentStaticQris,
+  CreatePayment,
+} from '../../wailsjs/go/main/App'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { useChatStore } from './chat'
 
 export interface QrisProduct {
   id: string
@@ -10,14 +21,30 @@ export interface QrisProduct {
 
 export interface QrisTransaction {
   id: string
+  paymentId?: string
   productId?: string
   productName?: string
   amount: number
+  uniqueAmount?: number
   qrDataUrl?: string
   status: 'pending' | 'paid' | 'cancelled'
   createdAt: number
   paidAt?: number
+  expiresAt?: number
   notes?: string
+}
+
+export interface MerchantSession {
+  loggedIn: boolean
+  merchantName?: string
+  storeId?: string
+  needsRelogin?: boolean
+}
+
+export interface MerchantSummary {
+  id: string
+  name: string
+  status: number
 }
 
 const STORAGE_KEYS = {
@@ -119,6 +146,174 @@ export const useQrisStore = defineStore('qris', () => {
     localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS)
   }
 
+  // === Merchant Session ===
+
+  const session = ref<MerchantSession>({ loggedIn: false })
+  const loginError = ref('')
+  const loginStep = ref<'idle' | 'number' | 'password' | 'otp' | 'merchant'>('idle')
+  const loginPhone = ref('')
+  const loginPassword = ref('')
+  const loginOtp = ref('')
+  const loginMerchants = ref<MerchantSummary[]>([])
+  const loginLoading = ref(false)
+
+  async function refreshSession() {
+    try {
+      const s = await GetPaymentSession()
+      session.value = {
+        loggedIn: s.loggedIn,
+        merchantName: s.merchantName,
+        storeId: s.storeId,
+        needsRelogin: s.needsRelogin,
+      }
+      if (s.loggedIn && qrisString.value) {
+        await syncQrisToBackend()
+      }
+    } catch {
+      session.value = { loggedIn: false }
+    }
+  }
+
+  async function syncQrisToBackend() {
+    if (!qrisString.value || !session.value.loggedIn) return
+    try {
+      await SetPaymentStaticQris(qrisString.value)
+    } catch (e: unknown) {
+      console.error('Failed to sync QRIS to backend:', e)
+    }
+  }
+
+  async function requestOtp(phone: string, password: string) {
+    loginLoading.value = true
+    loginError.value = ''
+    try {
+      await RequestShopeeOtp(phone, password)
+      loginPhone.value = phone
+      loginStep.value = 'otp'
+    } catch (e: unknown) {
+      loginError.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      loginLoading.value = false
+    }
+  }
+
+  async function verifyOtp(otp: string) {
+    loginLoading.value = true
+    loginError.value = ''
+    try {
+      const result = await VerifyShopeeOtp(otp)
+      if (result.status === 'complete') {
+        loginStep.value = 'idle'
+        await refreshSession()
+      } else if (result.status === 'merchant-selection-required') {
+        loginMerchants.value = result.merchants || []
+        loginStep.value = 'merchant'
+      }
+    } catch (e: unknown) {
+      loginError.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      loginLoading.value = false
+    }
+  }
+
+  async function completeLogin(merchantID: string, storeID: string) {
+    loginLoading.value = true
+    loginError.value = ''
+    try {
+      await CompleteShopeeLogin(merchantID, storeID)
+      loginStep.value = 'idle'
+      await refreshSession()
+    } catch (e: unknown) {
+      loginError.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      loginLoading.value = false
+    }
+  }
+
+  async function logoutMerchant() {
+    try {
+      await LogoutPayment()
+    } catch { /* ignore */ }
+    session.value = { loggedIn: false }
+  }
+
+  function resetLogin() {
+    loginStep.value = 'idle'
+    loginPhone.value = ''
+    loginPassword.value = ''
+    loginOtp.value = ''
+    loginMerchants.value = []
+    loginError.value = ''
+  }
+
+  // === Payment via backend ===
+
+  interface BackendPaymentResult {
+    id: string
+    uniqueAmount: number
+    expiresAt: number
+    qrString: string
+  }
+
+  async function createPayment(amount: number, reference: string): Promise<BackendPaymentResult | null> {
+    if (!session.value.loggedIn) return null
+    const result = await CreatePayment(amount, reference)
+    return {
+      id: result.id,
+      uniqueAmount: result.uniqueAmount,
+      expiresAt: result.expiresAt,
+      qrString: result.qrString,
+    }
+  }
+
+  async function setQris(qris: string) {
+    setQrisString(qris)
+    if (session.value.loggedIn) {
+      try {
+        await SetPaymentStaticQris(qris)
+      } catch (e: unknown) {
+        console.error('Failed to set backend QRIS:', e)
+      }
+    }
+  }
+
+  // === Settlement events ===
+
+  interface PaymentPaidEvent {
+    id: string
+    uniqueAmount: number
+    reference: string
+    status: string
+  }
+
+  function bindSettlementEvents() {
+    EventsOn('payment:paid', (data: PaymentPaidEvent) => {
+      const txn = transactions.value.find((t) => t.paymentId === data.id)
+      if (txn) {
+        txn.status = 'paid'
+        txn.paidAt = Date.now()
+        saveToStorage()
+
+        // Auto-send WhatsApp notification to the active chat
+        const chat = useChatStore()
+        if (chat.activeChatId) {
+          const caption = `✅ Pembayaran Berhasil!\n\nRp ${new Intl.NumberFormat('id-ID').format(data.uniqueAmount)}\n${data.reference ? 'Ref: ' + data.reference : ''}\n\nTerima kasih.`.trim()
+          chat.sendTextToChat(chat.activeChatId, caption)
+        }
+      }
+    })
+    EventsOn('payment:expired', (data: PaymentPaidEvent) => {
+      const txn = transactions.value.find((t) => t.paymentId === data.id)
+      if (txn) {
+        txn.status = 'cancelled'
+        saveToStorage()
+      }
+    })
+    EventsOn('payment:error', (data: { error: string }) => {
+      console.error('Payment error:', data.error)
+    })
+  }
+
   // Stats
   const todayTransactions = computed(() => {
     const today = new Date()
@@ -137,12 +332,22 @@ export const useQrisStore = defineStore('qris', () => {
 
   // Initialize
   loadFromStorage()
+  bindSettlementEvents()
 
   return {
     qrisString,
     products,
     transactions,
+    session,
+    loginError,
+    loginStep,
+    loginPhone,
+    loginPassword,
+    loginOtp,
+    loginMerchants,
+    loginLoading,
     setQrisString,
+    setQris,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -150,6 +355,13 @@ export const useQrisStore = defineStore('qris', () => {
     updateTransactionStatus,
     deleteTransaction,
     clearAllData,
+    refreshSession,
+    requestOtp,
+    verifyOtp,
+    completeLogin,
+    logoutMerchant,
+    resetLogin,
+    createPayment,
     todayTransactions,
     totalToday,
     totalPending,

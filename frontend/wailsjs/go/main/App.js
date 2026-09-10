@@ -42,8 +42,20 @@ export function BlockChat(arg1, arg2, arg3) {
   return window['go']['main']['App']['BlockChat'](arg1, arg2, arg3);
 }
 
+export function CancelPayment(arg1) {
+  return window['go']['main']['App']['CancelPayment'](arg1);
+}
+
+export function CompleteShopeeLogin(arg1, arg2) {
+  return window['go']['main']['App']['CompleteShopeeLogin'](arg1, arg2);
+}
+
 export function CopyToClipboard(arg1) {
   return window['go']['main']['App']['CopyToClipboard'](arg1);
+}
+
+export function CreatePayment(arg1, arg2) {
+  return window['go']['main']['App']['CreatePayment'](arg1, arg2);
 }
 
 export function DeleteMessage(arg1, arg2, arg3, arg4) {
@@ -82,6 +94,14 @@ export function GetImageGenConfig() {
   return window['go']['main']['App']['GetImageGenConfig']();
 }
 
+export function GetPayment(arg1) {
+  return window['go']['main']['App']['GetPayment'](arg1);
+}
+
+export function GetPaymentSession() {
+  return window['go']['main']['App']['GetPaymentSession']();
+}
+
 export function GetSubscribedChannels(arg1) {
   return window['go']['main']['App']['GetSubscribedChannels'](arg1);
 }
@@ -96,6 +116,10 @@ export function IsOnWhatsApp(arg1, arg2) {
 
 export function LeaveGroup(arg1, arg2) {
   return window['go']['main']['App']['LeaveGroup'](arg1, arg2);
+}
+
+export function ListPayments(arg1) {
+  return window['go']['main']['App']['ListPayments'](arg1);
 }
 
 export function ListSessions() {
@@ -116,6 +140,10 @@ export function LoadMessages(arg1, arg2, arg3, arg4) {
 
 export function Logout(arg1) {
   return window['go']['main']['App']['Logout'](arg1);
+}
+
+export function LogoutPayment() {
+  return window['go']['main']['App']['LogoutPayment']();
 }
 
 export function MarkRead(arg1, arg2, arg3, arg4) {
@@ -152,6 +180,10 @@ export function ReactMessage(arg1, arg2, arg3, arg4, arg5) {
 
 export function RefreshAvatar(arg1, arg2) {
   return window['go']['main']['App']['RefreshAvatar'](arg1, arg2);
+}
+
+export function RequestShopeeOtp(arg1, arg2) {
+  return window['go']['main']['App']['RequestShopeeOtp'](arg1, arg2);
 }
 
 export function SaveBase64Image(arg1) {
@@ -198,6 +230,10 @@ export function SetImageGenConfig(arg1) {
   return window['go']['main']['App']['SetImageGenConfig'](arg1);
 }
 
+export function SetPaymentStaticQris(arg1) {
+  return window['go']['main']['App']['SetPaymentStaticQris'](arg1);
+}
+
 export function SetSelfProfilePicture(arg1, arg2) {
   return window['go']['main']['App']['SetSelfProfilePicture'](arg1, arg2);
 }
@@ -224,6 +260,10 @@ export function UnfollowChannel(arg1, arg2) {
 
 export function UpdateGroupParticipants(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateGroupParticipants'](arg1, arg2, arg3, arg4);
+}
+
+export function VerifyShopeeOtp(arg1) {
+  return window['go']['main']['App']['VerifyShopeeOtp'](arg1);
 }
 
 export function WindowHide() {

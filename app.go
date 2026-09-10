@@ -14,6 +14,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"wakupi/internal/ai"
+	"wakupi/internal/payment"
 	"wakupi/internal/wa"
 )
 
@@ -22,6 +23,7 @@ type App struct {
 	wa  *wa.Manager
 	ai  *ai.Service
 	imageGen *ai.Service
+	payments *payment.Manager
 
 	aiStreamMu     sync.Mutex
 	aiStreamCancel context.CancelFunc
@@ -49,6 +51,21 @@ func (a *App) startup(ctx context.Context) {
 	if err := mgr.LoadExisting(ctx); err != nil {
 		runtime.LogErrorf(ctx, "load existing sessions: %v", err)
 	}
+
+	// Payment manager.
+	pm, err := payment.NewManager("./data", func(name string, data ...interface{}) {
+		runtime.EventsEmit(a.ctx, name, data...)
+	})
+	if err != nil {
+		runtime.LogErrorf(ctx, "payment manager init: %v", err)
+	} else {
+		a.payments = pm
+		if ok, err := pm.RestoreSession(ctx); err != nil {
+			runtime.LogErrorf(ctx, "restore payment session: %v", err)
+		} else if ok {
+			runtime.LogInfo(ctx, "payment session restored")
+		}
+	}
 }
 
 func (a *App) loadAIConfig() ai.Config {
@@ -64,6 +81,9 @@ func (a *App) loadAIConfig() ai.Config {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	if a.payments != nil {
+		_ = a.payments.Close()
+	}
 	if a.wa != nil {
 		a.wa.Shutdown()
 	}
@@ -648,4 +668,103 @@ func (a *App) CopyToClipboard(text string) error {
 		return cmd.Run()
 	}
 	return fmt.Errorf("tidak ada clipboard tool (install xclip/xsel/wl-clipboard)")
+}
+
+// === Payment: Shopee Merchant ===
+
+func (a *App) assertPayments() (*payment.Manager, error) {
+	if a.payments == nil {
+		return nil, fmt.Errorf("payment manager not initialized")
+	}
+	return a.payments, nil
+}
+
+// RequestShopeeOtp sends an OTP to the given phone number.
+func (a *App) RequestShopeeOtp(phone, password string) (*payment.OtpResponse, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.RequestOtp(phone, password)
+}
+
+// VerifyShopeeOtp verifies the OTP and attempts login.
+func (a *App) VerifyShopeeOtp(otp string) (*payment.VerifyLoginOutcome, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.VerifyOtp(otp)
+}
+
+// CompleteShopeeLogin finishes login by selecting a merchant and store.
+func (a *App) CompleteShopeeLogin(merchantID, storeID string) (*payment.CompleteLoginResult, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.CompleteLogin(merchantID, storeID)
+}
+
+// GetPaymentSession returns the current payment session status.
+func (a *App) GetPaymentSession() *payment.SessionInfo {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return &payment.SessionInfo{LoggedIn: false}
+	}
+	return pm.GetSessionInfo()
+}
+
+// LogoutPayment discards the current payment session.
+func (a *App) LogoutPayment() error {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return err
+	}
+	return pm.Logout(a.ctx)
+}
+
+// SetPaymentStaticQris binds a static QRIS payload.
+func (a *App) SetPaymentStaticQris(qris string) error {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return err
+	}
+	return pm.SetStaticQris(qris)
+}
+
+// CreatePayment creates a new payment intent with dynamic QRIS.
+func (a *App) CreatePayment(amount int64, reference string) (*payment.PaymentInfo, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.CreatePayment(amount, reference)
+}
+
+// CancelPayment cancels a pending payment.
+func (a *App) CancelPayment(id string) error {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return err
+	}
+	return pm.CancelPayment(id)
+}
+
+// GetPayment returns a payment by id.
+func (a *App) GetPayment(id string) (*payment.PaymentInfo, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.GetPayment(a.ctx, id)
+}
+
+// ListPayments returns recent payments.
+func (a *App) ListPayments(limit int) ([]payment.PaymentInfo, error) {
+	pm, err := a.assertPayments()
+	if err != nil {
+		return nil, err
+	}
+	return pm.ListPayments(a.ctx, limit)
 }

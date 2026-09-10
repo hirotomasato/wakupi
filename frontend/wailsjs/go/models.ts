@@ -112,6 +112,139 @@ export namespace main {
 
 }
 
+export namespace payment {
+	
+	export class CompleteLoginResult {
+	    status: string;
+	    merchantId: string;
+	    merchantName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CompleteLoginResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.merchantId = source["merchantId"];
+	        this.merchantName = source["merchantName"];
+	    }
+	}
+	export class MerchantSummary {
+	    id: string;
+	    name: string;
+	    status: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MerchantSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	    }
+	}
+	export class OtpResponse {
+	    phoneNumber: string;
+	    channel: number;
+	    hasPassword: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new OtpResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.phoneNumber = source["phoneNumber"];
+	        this.channel = source["channel"];
+	        this.hasPassword = source["hasPassword"];
+	    }
+	}
+	export class PaymentInfo {
+	    id: string;
+	    baseAmount: number;
+	    uniqueAmount: number;
+	    status: string;
+	    reference: string;
+	    qrString: string;
+	    createdAt: number;
+	    expiresAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.baseAmount = source["baseAmount"];
+	        this.uniqueAmount = source["uniqueAmount"];
+	        this.status = source["status"];
+	        this.reference = source["reference"];
+	        this.qrString = source["qrString"];
+	        this.createdAt = source["createdAt"];
+	        this.expiresAt = source["expiresAt"];
+	    }
+	}
+	export class SessionInfo {
+	    loggedIn: boolean;
+	    merchantName?: string;
+	    storeId?: string;
+	    needsRelogin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.loggedIn = source["loggedIn"];
+	        this.merchantName = source["merchantName"];
+	        this.storeId = source["storeId"];
+	        this.needsRelogin = source["needsRelogin"];
+	    }
+	}
+	export class VerifyLoginOutcome {
+	    status: string;
+	    merchantId?: string;
+	    merchantName?: string;
+	    merchants?: MerchantSummary[];
+	
+	    static createFrom(source: any = {}) {
+	        return new VerifyLoginOutcome(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.merchantId = source["merchantId"];
+	        this.merchantName = source["merchantName"];
+	        this.merchants = this.convertValues(source["merchants"], MerchantSummary);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace wa {
 	
 	export class ChannelInfo {

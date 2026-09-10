@@ -40,9 +40,20 @@ const composing = ref(false)
 const showEmoji = ref(false)
 const showQrisGenerator = ref(false)
 
-async function handleQrisSendToChat(amount: number, qrDataUrl: string) {
-  const caption = `💳 Invoice QRIS - Rp ${new Intl.NumberFormat('id-ID').format(amount)}`
-  await store.sendImageBlob(qrDataUrl, caption)
+async function handleQrisSendToChat(payload: { amount: number; uniqueAmount: number; expiresAt: number; notes: string; qrDataUrl: string }) {
+  const rupiah = (n: number) => new Intl.NumberFormat('id-ID').format(n)
+  let caption = `💳 Invoice QRIS - Rp ${rupiah(payload.amount)}`
+  if (payload.uniqueAmount && payload.uniqueAmount !== payload.amount) {
+    caption += `\nBayar tepat: Rp ${rupiah(payload.uniqueAmount)}`
+  }
+  if (payload.expiresAt) {
+    const t = new Date(payload.expiresAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    caption += `\n⏳ Berlaku sampai ${t}`
+  }
+  if (payload.notes) {
+    caption += `\n📝 ${payload.notes}`
+  }
+  await store.sendImageBlob(payload.qrDataUrl, caption)
   showQrisGenerator.value = false
 }
 
